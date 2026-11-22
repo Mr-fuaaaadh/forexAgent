@@ -12,7 +12,7 @@ Never claim a compile or backtest passed unless it was actually run. Record term
 6. Demo forward test across different sessions and broker symbol variants.
 
 ## M5 signal engine scenarios
-- Bullish sweep followed by later bullish CHoCH, completed bullish FVG, and subsequent bullish FVG retest emits a signal only.
+- Bullish and bearish sweeps followed by later directional CHoCH, completed directional FVG, and subsequent directional FVG retest emit signals only.
 - Sweep and CHoCH on the same candle must not satisfy the staged setup.
 - Higher-timeframe conflict invalidates a pending setup and never emits a signal.
 - Duplicate/old M5 bar timestamps never emit a second signal.
