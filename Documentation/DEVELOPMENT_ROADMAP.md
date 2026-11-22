@@ -42,7 +42,7 @@
 - [ ] Hedging and netting position management.
 
 ## Phase 4 — strategy modules
-- [ ] Sweep + CHoCH + FVG.
+- [x] Sweep + CHoCH + FVG signal module (MT5 execution validation pending).
 - [x] BOS + order-block retest signal module (MT5 execution validation pending).
 - [x] Breakout + retest signal module (MT5 execution validation pending).
 - [x] Trend continuation + pullback signal module (MT5 execution validation pending).
