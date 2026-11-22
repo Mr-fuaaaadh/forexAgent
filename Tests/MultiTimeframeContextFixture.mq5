@@ -5,7 +5,7 @@
 #property strict
 #property script_show_inputs
 
-#include "..\\Include\\MultiTimeframeContext.mqh"
+#include "..\Include\MultiTimeframeContext.mqh"
 
 int g_passed = 0;
 int g_failed = 0;
