@@ -26,8 +26,13 @@
 - [x] Add bullish and bearish M5 sequence fixtures.
 - [x] Add H1/M15 direction-flip invalidation fixture.
 - [ ] Add sweep/FVG invalidation edge-case fixtures and run all fixtures in MT5.
-- [ ] Setup IDs and duplicate prevention for all four strategy modules.
-- [ ] Deterministic tests/fixtures.
+- [x] BOS + order-block retest signal module.
+- [x] Breakout + retest signal module.
+- [x] Trend continuation + pullback signal module.
+- [x] Unified priority arbitration and conflicting-direction rejection.
+- [x] Secondary strategy state persistence and new-bar runtime dispatcher.
+- [x] Synthetic fixtures for M15 BOS capture, all three secondary modules, priority and persistence.
+- [ ] Validate all strategy fixtures in MetaEditor/MT5 and add additional historical edge cases.
 
 ## Phase 3 — execution and risk
 - [ ] Monetary lot sizing via OrderCalcProfit.
@@ -38,10 +43,10 @@
 
 ## Phase 4 — strategy modules
 - [ ] Sweep + CHoCH + FVG.
-- [ ] BOS + order-block retest.
-- [ ] Breakout + retest.
-- [ ] Trend continuation + pullback.
-- [ ] Priority arbitration and conflict rejection.
+- [x] BOS + order-block retest signal module (MT5 execution validation pending).
+- [x] Breakout + retest signal module (MT5 execution validation pending).
+- [x] Trend continuation + pullback signal module (MT5 execution validation pending).
+- [x] Priority arbitration and conflict rejection.
 
 ## Phase 5 — filters and exits
 - [ ] Spread/ATR and slippage filters.
