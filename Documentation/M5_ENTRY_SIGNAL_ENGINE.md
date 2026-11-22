@@ -13,7 +13,7 @@
 5. A later candle retests the FVG boundary and closes back through the far edge in the intended direction with a directional candle body.
 6. A deterministic setup ID is emitted from symbol, direction, sweep time, CHoCH time, and FVG time.
 
-The setup expires after a configurable maximum number of M5 bars (default 12). Opposite M5 CHoCH, higher-timeframe conflict, or expiry invalidates the pending setup.
+The setup expires after a configurable maximum number of M5 bars (default 12). Opposite M5 CHoCH, a change to the opposite H1/M15 direction, a close through the sweep extreme, FVG invalidation, or expiry invalidates the pending setup.
 
 ## Closed-bar and duplicate protection
 - Input rates must be a series array: index 0 is forming, index 1 is the latest completed candle.
