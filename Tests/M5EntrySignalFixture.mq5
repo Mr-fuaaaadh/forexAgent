@@ -175,6 +175,36 @@ void OnStart()
          signal.signal==PA_ENTRY_NONE &&
          signal.rejection_reason=="H1_M15_CONTEXT_NOT_ALIGNED");
 
+   // An opposite but otherwise valid higher-timeframe direction must also
+   // invalidate an already pending setup.
+   PA_ResetM5SetupState(setup);
+   setup.stage=PA_SETUP_WAIT_CHOCH;
+   setup.direction=1;
+   setup.sweep_time=base+600;
+   setup.sweep_extreme=9.0;
+   setup.swept_level=10.0;
+   setup.last_processed_bar_time=base+900;
+   PA_ResetStructureState(structure);
+   structure.direction=-1;
+   structure.latest_swing_high=30.0;
+   structure.latest_swing_low=10.0;
+   structure.latest_swing_high_time=pivot_time;
+   structure.latest_swing_low_time=pivot_time;
+   structure.protected_high=30.0;
+   structure.protected_high_time=pivot_time;
+   structure.last_structure_event_time=pivot_time;
+   structure.last_processed_bar_time=base+900;
+   context.context=PA_CONTEXT_BEARISH_ALIGNED;
+   context.h1_direction=-1;
+   context.m15_direction=-1;
+   BuildFixtureRates(rates,base+1200);
+   const bool context_flip=PA_EvaluateM5EntrySignal(_Symbol,rates,
+      ArraySize(rates),0.05,context,structure,setup,signal,12);
+   Check("opposite aligned H1/M15 context invalidates pending BUY",
+         context_flip && setup.stage==PA_SETUP_IDLE &&
+         signal.signal==PA_ENTRY_NONE &&
+         signal.rejection_reason=="CONTEXT_DIRECTION_CHANGED");
+
    // Mirror the complete sequence for SELL.
    PA_ResetM5SetupState(setup);
    PA_ResetStructureState(structure);
