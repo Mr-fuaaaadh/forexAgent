@@ -52,6 +52,21 @@ void OnStart()
    Check("invalid direction is rejected",
       !PA_CalculateStops(0,4000.0,3995.0,2.0,sl,tp));
 
+   Check("static max-loss floor is 88% of starting balance",
+      MathAbs(PA_ChallengeStaticLossFloor(10000.0)-8800.0)<0.000001);
+   Check("static max-loss triggers at 12% equity drawdown",
+      PA_IsChallengeStaticLossTriggered(10000.0,8800.0));
+   Check("static max-loss stays clear above floor",
+      !PA_IsChallengeStaticLossTriggered(10000.0,8800.01));
+   Check("single profit target is 110% of starting balance",
+      MathAbs(PA_ChallengeProfitTarget(10000.0)-11000.0)<0.000001);
+   Check("single target triggers at target balance",
+      PA_IsChallengeProfitTargetReached(10000.0,11000.0));
+   Check("2% internal daily equity guard triggers at threshold",
+      PA_IsDailyInternalLossTriggered(10000.0,9800.0));
+   Check("2% internal daily equity guard remains clear above threshold",
+      !PA_IsDailyInternalLossTriggered(10000.0,9800.01));
+
    PrintFormat("Demo execution fixtures complete. Passed=%d Failed=%d",
       g_passed,g_failed);
   }

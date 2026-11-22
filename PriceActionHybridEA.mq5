@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //| PriceActionHybridEA.mq5                                          |
-//| Signal-only integration of the closed-bar price-action engine.  |
-//| No order execution is implemented in this build.                  |
+//| Demo-only execution of the closed-bar price-action engine.       |
+//| Live-account execution is permanently blocked.                   |
 //+------------------------------------------------------------------+
 #property strict
 #property version   "1.30"
-#property description "XAUUSD Price Action Hybrid EA - signal-only integration."
+#property description "XAUUSD Price Action Hybrid EA - demo-only challenge controls."
 
 #include "Include/M5EntrySignal.mqh"
 #include "Include/M5SetupPersistence.mqh"
@@ -20,6 +20,7 @@ input int    InpMaximumPositions = 3;
 input double InpMaximumOpenRisk  = 1.5;
 input double InpDailyLossLimit   = 2.0;
 input double InpRiskRewardRatio  = 2.0;
+input double InpChallengeInitialBalance = 0.0; // Exact challenge starting balance.
 input int    InpHistoryBars      = 500;
 input int    InpSwingLookback    = 80;
 input int    InpMaximumSetupBars = 12;
@@ -252,7 +253,8 @@ int OnInit()
    if(!PA_InitDemoExecution(g_symbol,InpMagicNumber,InpEnableTrading,
                             InpAllowLiveTrading,InpRiskPercent,
                             InpMaximumPositions,InpMaximumOpenRisk,
-                            InpDailyLossLimit,InpRiskRewardRatio))
+                            InpDailyLossLimit,InpRiskRewardRatio,
+                            InpChallengeInitialBalance))
      {
       Print("INIT FAILED: demo execution safety initialization failed.");
       return INIT_FAILED;
@@ -294,7 +296,15 @@ void OnDeinit(const int reason)
       PA_SaveSecondaryStrategyState(g_symbol,InpMagicNumber,g_secondary_state);
       GlobalVariablesFlush();
      }
-   PrintFormat("Signal-only EA deinitialized. Reason=%d",reason);
+   PrintFormat("Demo-only EA deinitialized. Reason=%d",reason);
+  }
+
+void OnTradeTransaction(const MqlTradeTransaction &trans,
+                        const MqlTradeRequest &request,
+                        const MqlTradeResult &result)
+  {
+   if(trans.type==TRADE_TRANSACTION_DEAL_ADD)
+      PA_RecordChallengeTradingDay(trans.deal);
   }
 
 void OnTick()

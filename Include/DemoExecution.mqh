@@ -11,6 +11,10 @@
 #define PA_DEMO_MAX_POSITIONS 3
 #define PA_DEMO_MAX_RISK_PERCENT 1.5
 #define PA_DEMO_DAILY_LOSS_PERCENT 2.0
+#define PA_DEMO_FIRM_DAILY_LOSS_PERCENT 4.0
+#define PA_DEMO_STATIC_MAX_LOSS_PERCENT 12.0
+#define PA_DEMO_SINGLE_PROFIT_TARGET_PERCENT 10.0
+#define PA_DEMO_MIN_TRADING_DAYS 1
 #define PA_DEMO_RISK_PER_TRADE_PERCENT 0.5
 #define PA_DEMO_RR 2.0
 
@@ -21,12 +25,48 @@ double g_pa_day_start_equity=0.0;
 int    g_pa_server_day_key=0;
 string g_pa_exec_symbol="";
 long   g_pa_exec_magic=0;
+double g_pa_challenge_initial_balance=0.0;
+bool   g_pa_static_loss_locked=false;
+bool   g_pa_target_locked=false;
 
 int PA_DayKey(const datetime value)
   {
    MqlDateTime parts;
    TimeToStruct(value,parts);
    return parts.year*10000+parts.mon*100+parts.day;
+  }
+
+double PA_ChallengeStaticLossFloor(const double initial_balance)
+  {
+   if(initial_balance<=0.0)
+      return 0.0;
+   return initial_balance*(1.0-PA_DEMO_STATIC_MAX_LOSS_PERCENT/100.0);
+  }
+
+double PA_ChallengeProfitTarget(const double initial_balance)
+  {
+   if(initial_balance<=0.0)
+      return 0.0;
+   return initial_balance*(1.0+PA_DEMO_SINGLE_PROFIT_TARGET_PERCENT/100.0);
+  }
+
+bool PA_IsDailyInternalLossTriggered(const double day_start_equity,const double current_equity)
+  {
+   if(day_start_equity<=0.0 || current_equity<=0.0)
+      return true;
+   return current_equity<=day_start_equity*(1.0-PA_DEMO_DAILY_LOSS_PERCENT/100.0);
+  }
+
+bool PA_IsChallengeStaticLossTriggered(const double initial_balance,const double current_equity)
+  {
+   const double floor=PA_ChallengeStaticLossFloor(initial_balance);
+   return (floor<=0.0 || current_equity<=floor);
+  }
+
+bool PA_IsChallengeProfitTargetReached(const double initial_balance,const double current_balance)
+  {
+   const double target=PA_ChallengeProfitTarget(initial_balance);
+   return (target>0.0 && current_balance>=target);
   }
 
 uint PA_ExecutionHash(const string value)
@@ -71,7 +111,8 @@ bool PA_IsDemoHedgingAccount()
 bool PA_InitDemoExecution(const string symbol,const long magic,const bool enabled,
                           const bool live_input,const double risk_percent,
                           const int max_positions,const double max_open_risk,
-                          const double daily_loss_limit,const double rr)
+                          const double daily_loss_limit,const double rr,
+                          const double challenge_initial_balance)
   {
    g_pa_demo_execution_ready=false;
    g_pa_exec_symbol=symbol;
@@ -97,6 +138,26 @@ bool PA_InitDemoExecution(const string symbol,const long magic,const bool enable
       Print("DEMO EXECUTION DISABLED: EA remains signal-only.");
       return true;
      }
+   if(challenge_initial_balance<=0.0 || !MathIsValidNumber(challenge_initial_balance))
+     {
+      Print("INIT BLOCKED: set the exact challenge starting balance before enabling demo execution.");
+      return false;
+     }
+   g_pa_challenge_initial_balance=challenge_initial_balance;
+   const string challenge_key=PA_ExecutionPrefix()+".challenge_initial_balance";
+   if(GlobalVariableCheck(challenge_key))
+     {
+      const double persisted=GlobalVariableGet(challenge_key);
+      if(MathAbs(persisted-challenge_initial_balance)>0.01)
+        {
+         Print("INIT BLOCKED: configured challenge starting balance differs from persisted baseline.");
+         return false;
+        }
+     }
+   else if(GlobalVariableSet(challenge_key,challenge_initial_balance)==0)
+      return false;
+   GlobalVariablesFlush();
+
    if(!PA_IsDemoHedgingAccount())
       return false;
 
@@ -141,9 +202,13 @@ bool PA_InitDemoExecution(const string symbol,const long magic,const bool enable
       return false;
 
    g_pa_daily_locked=false;
+   g_pa_static_loss_locked=false;
+   g_pa_target_locked=false;
    g_pa_demo_execution_ready=true;
-   PrintFormat("DEMO EXECUTION READY | symbol=%s | risk=%.2f%% | max_positions=%d | aggregate_risk=%.2f%% | daily_loss=%.2f%% | RR=1:2 | live=false",
-      symbol,risk_percent,max_positions,max_open_risk,daily_loss_limit);
+   PrintFormat("DEMO CHALLENGE READY | target=%.2f%% | firm_daily=%.2f%% | internal_daily=%.2f%% | static_max_loss=%.2f%% | min_days=%d | start_balance=%.2f | live=false",
+      PA_DEMO_SINGLE_PROFIT_TARGET_PERCENT,PA_DEMO_FIRM_DAILY_LOSS_PERCENT,
+      PA_DEMO_DAILY_LOSS_PERCENT,PA_DEMO_STATIC_MAX_LOSS_PERCENT,
+      PA_DEMO_MIN_TRADING_DAYS,g_pa_challenge_initial_balance);
    return true;
   }
 
@@ -303,6 +368,29 @@ bool PA_ReserveSetup(const string setup_id)
    return true;
   }
 
+void PA_RecordChallengeTradingDay(const ulong deal_ticket)
+  {
+   if(deal_ticket==0 || !HistoryDealSelect(deal_ticket))
+      return;
+   if(HistoryDealGetString(deal_ticket,DEAL_SYMBOL)!=g_pa_exec_symbol ||
+      (long)HistoryDealGetInteger(deal_ticket,DEAL_MAGIC)!=g_pa_exec_magic)
+      return;
+   const ENUM_DEAL_ENTRY entry=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal_ticket,DEAL_ENTRY);
+   if(entry!=DEAL_ENTRY_IN && entry!=DEAL_ENTRY_INOUT)
+      return;
+   const datetime deal_time=(datetime)HistoryDealGetInteger(deal_ticket,DEAL_TIME);
+   const string key=PA_ExecutionPrefix()+".trading_day";
+   if(GlobalVariableSet(key,(double)PA_DayKey(deal_time))==0)
+      Print("CHALLENGE TRACKER WARNING: unable to persist minimum trading-day marker.");
+   else
+      GlobalVariablesFlush();
+  }
+
+bool PA_ChallengeMinimumTradingDaysSatisfied()
+  {
+   return GlobalVariableCheck(PA_ExecutionPrefix()+".trading_day");
+  }
+
 bool PA_DailyLossTriggered()
   {
    if(g_pa_day_start_equity<=0.0)
@@ -330,7 +418,11 @@ bool PA_DailyLossTriggered()
       g_pa_daily_locked=false;
      }
    const double equity=AccountInfoDouble(ACCOUNT_EQUITY);
-   return (equity<=g_pa_day_start_equity*(1.0-PA_DEMO_DAILY_LOSS_PERCENT/100.0));
+   const bool internal_limit=PA_IsDailyInternalLossTriggered(g_pa_day_start_equity,equity);
+   const bool firm_limit=(equity<=g_pa_day_start_equity*(1.0-PA_DEMO_FIRM_DAILY_LOSS_PERCENT/100.0));
+   if(firm_limit)
+      Print("CHALLENGE BREACH GUARD: 4% daily equity loss threshold reached.");
+   return (internal_limit || firm_limit);
   }
 
 void PA_EnforceDemoRiskGuards()
@@ -340,14 +432,25 @@ void PA_EnforceDemoRiskGuards()
    if(PA_DailyLossTriggered())
       g_pa_daily_locked=true;
 
+   const double current_equity=AccountInfoDouble(ACCOUNT_EQUITY);
+   const double current_balance=AccountInfoDouble(ACCOUNT_BALANCE);
+   if(PA_IsChallengeStaticLossTriggered(g_pa_challenge_initial_balance,current_equity))
+      g_pa_static_loss_locked=true;
+   if(PA_IsChallengeProfitTargetReached(g_pa_challenge_initial_balance,current_balance) &&
+      PA_ChallengeMinimumTradingDaysSatisfied())
+      g_pa_target_locked=true;
+
    double open_risk=0.0;
    int positions=0;
    bool missing_sl=false;
    PA_GetManagedPositionRisk(open_risk,positions,missing_sl);
 
-   if(missing_sl || g_pa_daily_locked)
+   if(missing_sl || g_pa_daily_locked || g_pa_static_loss_locked || g_pa_target_locked)
      {
-      const string reason=g_pa_daily_locked ? "DAILY_LOSS_LIMIT" : "MISSING_OR_UNCALCULABLE_SL";
+      string reason="MISSING_OR_UNCALCULABLE_SL";
+      if(g_pa_daily_locked) reason="INTERNAL_DAILY_EQUITY_LOSS_LIMIT";
+      if(g_pa_static_loss_locked) reason="STATIC_MAX_LOSS_12_PERCENT";
+      if(g_pa_target_locked) reason="SINGLE_PROFIT_TARGET_10_PERCENT";
       PrintFormat("DEMO EMERGENCY GUARD: %s; closing managed positions and blocking entries.",reason);
       for(int i=PositionsTotal()-1;i>=0;i--)
         {
@@ -363,7 +466,11 @@ void PA_EnforceDemoRiskGuards()
 
 bool PA_ExecuteSelectedDemoSignal(const PA_StrategySignal &signal)
   {
-   if(!g_pa_demo_execution_ready || g_pa_daily_locked ||
+   if(!g_pa_demo_execution_ready || g_pa_daily_locked || g_pa_static_loss_locked || g_pa_target_locked ||
+      PA_DailyLossTriggered() ||
+      PA_IsChallengeStaticLossTriggered(g_pa_challenge_initial_balance,AccountInfoDouble(ACCOUNT_EQUITY)) ||
+      (PA_IsChallengeProfitTargetReached(g_pa_challenge_initial_balance,AccountInfoDouble(ACCOUNT_BALANCE)) &&
+       PA_ChallengeMinimumTradingDaysSatisfied()) ||
       signal.strategy==PA_STRATEGY_NONE || signal.setup_id=="" ||
       (signal.direction!=1 && signal.direction!=-1))
       return false;
