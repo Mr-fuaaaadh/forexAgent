@@ -11,7 +11,13 @@ Never claim a compile or backtest passed unless it was actually run. Record term
 5. Account modes: hedging and netting.
 6. Demo forward test across different sessions and broker symbol variants.
 
-## Required scenarios
+## M5 signal engine scenarios
+- Bullish sweep followed by later bullish CHoCH, completed bullish FVG, and subsequent bullish FVG retest emits a signal only.
+- Sweep and CHoCH on the same candle must not satisfy the staged setup.
+- Higher-timeframe conflict invalidates a pending setup and never emits a signal.
+- Duplicate/old M5 bar timestamps never emit a second signal.
+- Pending setup state and last emitted setup ID survive terminal restart.
+- Setup expiry and opposite M5 CHoCH invalidate pending setup.\n\n## Required scenarios
 - Wick crosses swing but candle does not close beyond: no BOS.
 - Pivot has fewer than 3 right-side closed bars: not confirmed.
 - Missing/stale calendar: no new entries.
