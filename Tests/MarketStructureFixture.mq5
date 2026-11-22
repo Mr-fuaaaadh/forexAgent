@@ -97,12 +97,32 @@ void OnStart()
    Check("same candle timestamp is not processed twice",
          !PA_UpdateStructureState(rates,ArraySize(rates),12,state,snapshot));
 
+   rates[0].time += 120;
    rates[1].time += 60;
    rates[1].close = 0.5;
    Check("close through protected low creates bearish CHoCH",
          PA_UpdateStructureState(rates,ArraySize(rates),12,state,snapshot) &&
          snapshot.break_type==PA_BREAK_CHOCH_BEARISH &&
          state.direction==-1);
+
+   // Reverse-direction fixture: initial bearish BOS, then bullish CHoCH.
+   BuildBaseSeries(rates,16);
+   rates[4].high = 20.0;
+   rates[4].low = 1.0;
+   PA_ResetStructureState(state);
+   rates[1].close = 0.5;
+   Check("neutral state establishes bearish BOS",
+         PA_UpdateStructureState(rates,ArraySize(rates),12,state,snapshot) &&
+         snapshot.break_type==PA_BREAK_BOS_BEARISH &&
+         state.direction==-1 && state.protected_high==20.0);
+
+   rates[0].time += 120;
+   rates[1].time += 60;
+   rates[1].close = 21.0;
+   Check("close through protected high creates bullish CHoCH",
+         PA_UpdateStructureState(rates,ArraySize(rates),12,state,snapshot) &&
+         snapshot.break_type==PA_BREAK_CHOCH_BULLISH &&
+         state.direction==1);
 
    Print("MarketStructure fixtures complete. Passed=",g_passed,
          " Failed=",g_failed);
