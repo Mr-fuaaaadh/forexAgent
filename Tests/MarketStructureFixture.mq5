@@ -6,7 +6,7 @@
 #property strict
 #property script_show_inputs
 
-#include "..\\Include\\MarketStructure.mqh"
+#include "..\Include\MarketStructure.mqh"
 
 int g_passed = 0;
 int g_failed = 0;
