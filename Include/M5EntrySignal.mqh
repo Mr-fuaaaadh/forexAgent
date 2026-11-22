@@ -203,6 +203,14 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
       return true;
      }
 
+   if(setup.stage != PA_SETUP_IDLE &&
+      ((setup.direction > 0 && !bullish_context) ||
+       (setup.direction < 0 && !bearish_context)))
+     {
+      PA_RejectM5Setup(setup,"CONTEXT_DIRECTION_CHANGED",signal);
+      return true;
+     }
+
    const double atr14 = PA_CalculateATR14(rates,count);
    if(atr14 <= 0.0)
      {
@@ -231,6 +239,24 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
         structure_snapshot.break_type == PA_BREAK_CHOCH_BULLISH)))
      {
       PA_RejectM5Setup(setup,"OPPOSITE_M5_CHOCH",signal);
+      return true;
+     }
+
+   // Invalidate a sweep setup if price closes through its sweep extreme.
+   if(setup.stage != PA_SETUP_IDLE &&
+      ((setup.direction > 0 && rates[1].close < setup.sweep_extreme) ||
+       (setup.direction < 0 && rates[1].close > setup.sweep_extreme)))
+     {
+      PA_RejectM5Setup(setup,"SWEEP_EXTREME_INVALIDATED",signal);
+      return true;
+     }
+
+   // Once an FVG is recorded, a close through its far edge invalidates it.
+   if(setup.stage == PA_SETUP_WAIT_RETEST &&
+      ((setup.direction > 0 && rates[1].close < setup.fvg_lower) ||
+       (setup.direction < 0 && rates[1].close > setup.fvg_upper)))
+     {
+      PA_RejectM5Setup(setup,"FVG_INVALIDATED",signal);
       return true;
      }
 
