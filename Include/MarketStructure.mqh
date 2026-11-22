@@ -43,6 +43,11 @@ struct PA_StructureState
    datetime protected_low_time;
    datetime last_processed_bar_time;
    datetime last_structure_event_time;
+   PA_BreakType last_break_type;
+   int      reversal_candidate_direction;
+   datetime reversal_choch_time;
+   int      confirmed_reversal_direction;
+   datetime confirmed_reversal_time;
   };
 
 struct PA_Gap
@@ -71,6 +76,11 @@ void PA_ResetStructureState(PA_StructureState &state)
    state.protected_low_time = 0;
    state.last_processed_bar_time = 0;
    state.last_structure_event_time = 0;
+   state.last_break_type = PA_BREAK_NONE;
+   state.reversal_candidate_direction = 0;
+   state.reversal_choch_time = 0;
+   state.confirmed_reversal_direction = 0;
+   state.confirmed_reversal_time = 0;
   }
 
 void PA_ResetStructureSnapshot(PA_StructureSnapshot &snapshot)
@@ -174,7 +184,7 @@ bool PA_UpdateStructureState(const MqlRates &rates[],
   {
    PA_ResetStructureSnapshot(snapshot);
 
-   if(count < 9 || lookback < 4 || rates[1].time <= 0)
+   if(count < 8 || lookback < 4 || rates[1].time <= 0)
       return false;
 
    const datetime signal_time = rates[1].time;
@@ -275,6 +285,39 @@ bool PA_UpdateStructureState(const MqlRates &rates[],
          state.protected_high_time = state.latest_swing_high_time;
          state.last_structure_event_time = signal_time;
          snapshot.break_type = PA_BREAK_BOS_BEARISH;
+        }
+     }
+
+   if(snapshot.break_type != PA_BREAK_NONE)
+     {
+      state.last_break_type = snapshot.break_type;
+      if(snapshot.break_type == PA_BREAK_CHOCH_BULLISH)
+        {
+         state.reversal_candidate_direction = 1;
+         state.reversal_choch_time = signal_time;
+         state.confirmed_reversal_direction = 0;
+         state.confirmed_reversal_time = 0;
+        }
+      else if(snapshot.break_type == PA_BREAK_CHOCH_BEARISH)
+        {
+         state.reversal_candidate_direction = -1;
+         state.reversal_choch_time = signal_time;
+         state.confirmed_reversal_direction = 0;
+         state.confirmed_reversal_time = 0;
+        }
+      else if(snapshot.break_type == PA_BREAK_BOS_BULLISH &&
+              state.reversal_candidate_direction == 1 &&
+              signal_time > state.reversal_choch_time)
+        {
+         state.confirmed_reversal_direction = 1;
+         state.confirmed_reversal_time = signal_time;
+        }
+      else if(snapshot.break_type == PA_BREAK_BOS_BEARISH &&
+              state.reversal_candidate_direction == -1 &&
+              signal_time > state.reversal_choch_time)
+        {
+         state.confirmed_reversal_direction = -1;
+         state.confirmed_reversal_time = signal_time;
         }
      }
 
