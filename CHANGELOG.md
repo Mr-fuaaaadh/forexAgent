@@ -5,7 +5,7 @@ All notable project changes are recorded here.
 ## Unreleased
 - Added M5 primary entry signal state machine: sweep, later CHoCH, directional FVG, then FVG retest confirmation.
 - Added persistent M5 setup state and restart-safe emitted setup ID hash marker.
-- Added M5 runtime wrapper and synthetic bullish sequence fixture; MT5 execution remains pending.
+- Added M5 runtime wrapper and synthetic bullish and bearish sequence fixtures; MT5 execution remains pending.
 - Fixed structure state advancement so candles without newly confirmed pivots do not stall the closed-bar state machine.
 - Added H1/M15 context evaluation with strict directional conflict rejection and neutral-H1 CHoCH-then-BOS reversal qualification.
 - Added terminal Global Variable persistence for timeframe structure state, keyed by account, Magic Number, symbol, and timeframe.
