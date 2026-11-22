@@ -16,9 +16,9 @@ Callers must set rates as a series array (`ArraySetAsSeries(rates, true)`), so i
 A pivot at shift S is only confirmed when the three newer bars at S-1 through S-3 are closed. The implementation requires S >= 4, preventing a forming bar from participating in confirmation.
 
 ## Important interpretation limit
-`PA_EvaluateStructure` is a primitive, not a complete market-structure state machine. It compares the last completed close with the latest confirmed high/low and uses the caller-provided prior direction to label a BOS/CHoCH candidate. A future strategy layer must track protected highs/lows and validate whether the breached pivot is the protected swing before treating a candidate as a qualified CHoCH.
+`PA_UpdateStructureState` is the stateful structure primitive. It stores direction, latest confirmed pivots, protected swing, last structural event, and last processed candle timestamp. Neutral state establishes direction with a BOS; bullish state changes to bearish only after a close below its protected low; bearish state changes to bullish only after a close above its protected high. Continuation BOS refreshes the protected opposite swing. The caller must initialize and persist `PA_StructureState` across terminal restarts. The implementation is still a foundation: strategy-specific protected-swing definitions and multi-timeframe arbitration need further validation.
 
-## Deterministic test cases
+## Synthetic MT5 fixture\n`Tests/MarketStructureFixture.mq5` is a script that creates synthetic `MqlRates` data and checks pivot confirmation, strict equality handling, sweep thresholds, bullish FVG, initial bullish BOS, duplicate-candle suppression, and protected-low CHoCH. Run it from MetaTrader 5; it does not place trades. Review the Experts log for PASS/FAIL output.\n\n## Deterministic test cases
 Create synthetic `MqlRates` series fixtures with a known index-1 closed candle and verify:
 1. A pivot with fewer than three newer closed candles is not confirmed.
 2. Equal highs/lows invalidate a strict pivot.
@@ -32,4 +32,4 @@ Create synthetic `MqlRates` series fixtures with a known index-1 closed candle a
 10. Insufficient bars or invalid ATR/spread inputs return false.
 
 ## Validation status
-The module has been added to source control but has not been compiled in MetaEditor or run in MT5 Strategy Tester. Do not describe it as compile-verified. Next, add an MT5 test harness or reproducible fixture EA and validate edge cases in MetaEditor.
+The module has been added to source control but has not been compiled in MetaEditor or run in MT5 Strategy Tester. Do not describe it as compile-verified. The fixture script is committed but has not been run in MetaTrader 5 or compiled in MetaEditor in this environment. Record actual terminal/build output before marking validation complete.
