@@ -30,7 +30,7 @@ The setup expires after a configurable maximum number of M5 bars (default 12). O
 This is the initial deterministic retest definition. It is a strategy parameter to validate, not a claim that it is universally optimal.
 
 ## Synthetic fixture
-`Tests/M5EntrySignalFixture.mq5` constructs a bullish sweep → later bullish CHoCH → bullish FVG → retest sequence. It also checks persistence, setup identity fields, duplicate-bar rejection, and higher-timeframe conflict blocking. It sends no orders.
+`Tests/M5EntrySignalFixture.mq5` constructs both bullish and bearish sweep → later CHoCH → directional FVG → retest sequences. It also checks persistence, setup identity fields, duplicate-bar rejection, and higher-timeframe conflict blocking. It sends no orders.
 
 ## Validation status
 The source and fixture are committed, but have not been compiled or executed in MetaEditor/MT5 in this environment. Run the fixture in MT5, inspect Experts logs, and report the MT5 build before marking it validated.
