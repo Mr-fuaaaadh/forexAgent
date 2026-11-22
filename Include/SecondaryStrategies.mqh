@@ -162,7 +162,9 @@ bool PA_IsBullishM5Confirmation(const MqlRates &rates[],
   {
    if(count<3)
       return false;
-   return (snapshot.break_type==PA_BREAK_CHOCH_BULLISH ||
+   const bool current_choch=(snapshot.signal_bar_time==rates[1].time &&
+      snapshot.break_type==PA_BREAK_CHOCH_BULLISH);
+   return (current_choch ||
            (PA_IsBullishRejection(rates[1]) &&
             rates[1].close>rates[1].high-(rates[1].high-rates[1].low)*0.25));
   }
@@ -173,7 +175,9 @@ bool PA_IsBearishM5Confirmation(const MqlRates &rates[],
   {
    if(count<3)
       return false;
-   return (snapshot.break_type==PA_BREAK_CHOCH_BEARISH ||
+   const bool current_choch=(snapshot.signal_bar_time==rates[1].time &&
+      snapshot.break_type==PA_BREAK_CHOCH_BEARISH);
+   return (current_choch ||
            (PA_IsBearishRejection(rates[1]) &&
             rates[1].close<rates[1].low+(rates[1].high-rates[1].low)*0.25));
   }
@@ -258,7 +262,7 @@ void PA_CaptureM15BOS(const string symbol,
       state.order_block.stage=PA_SECONDARY_WAIT_RETEST;
       state.order_block.direction=direction;
       state.order_block.source_event_time=event_time;
-      state.order_block.setup_created_time=event_time;
+      state.order_block.setup_created_time=event_time+PeriodSeconds(PERIOD_M15);
       state.order_block.zone_low=ob_low;
       state.order_block.zone_high=ob_high;
       state.order_block.reference_level=direction>0?ob_high:ob_low;
@@ -280,7 +284,7 @@ void PA_CaptureM15BOS(const string symbol,
          state.breakout.stage=PA_SECONDARY_WAIT_RETEST;
          state.breakout.direction=direction;
          state.breakout.source_event_time=event_time;
-         state.breakout.setup_created_time=event_time;
+         state.breakout.setup_created_time=event_time+PeriodSeconds(PERIOD_M15);
          state.breakout.reference_level=level;
          state.breakout.zone_low=level;
          state.breakout.zone_high=level;
@@ -298,7 +302,7 @@ void PA_CaptureM15BOS(const string symbol,
       state.continuation.stage=PA_SECONDARY_WAIT_PULLBACK;
       state.continuation.direction=direction;
       state.continuation.source_event_time=event_time;
-      state.continuation.setup_created_time=event_time;
+      state.continuation.setup_created_time=event_time+PeriodSeconds(PERIOD_M15);
       state.continuation.reference_level=support;
       state.continuation.zone_low=support;
       state.continuation.zone_high=support;
@@ -318,6 +322,11 @@ bool PA_EvaluateBOSOrderBlockRetest(const string symbol,
    PA_ResetStrategySignal(signal);
    if(setup.stage!=PA_SECONDARY_WAIT_RETEST || m5_count<3)
       return false;
+   if(m5_rates[1].time<=setup.setup_created_time)
+     {
+      signal.rejection_reason="WAITING_FOR_POST_BOS_M5_CANDLE";
+      return false;
+     }
    setup.bars_waiting++;
    if(setup.bars_waiting>36)
      {
@@ -372,6 +381,11 @@ bool PA_EvaluateBreakoutRetest(const string symbol,
    PA_ResetStrategySignal(signal);
    if(setup.stage!=PA_SECONDARY_WAIT_RETEST || m5_count<3)
       return false;
+   if(m5_rates[1].time<=setup.setup_created_time)
+     {
+      signal.rejection_reason="WAITING_FOR_POST_BOS_M5_CANDLE";
+      return false;
+     }
    setup.bars_waiting++;
    if(setup.bars_waiting>36)
      {
@@ -427,6 +441,11 @@ bool PA_EvaluateTrendPullback(const string symbol,
    PA_ResetStrategySignal(signal);
    if(setup.stage==PA_SECONDARY_IDLE || m5_count<4)
       return false;
+   if(m5_rates[1].time<=setup.setup_created_time)
+     {
+      signal.rejection_reason="WAITING_FOR_POST_BOS_M5_CANDLE";
+      return false;
+     }
    setup.bars_waiting++;
    if(setup.bars_waiting>48)
      {
