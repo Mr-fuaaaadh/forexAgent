@@ -6,7 +6,7 @@
 #property strict
 #property script_show_inputs
 
-#include "..\\Include\\M5SetupPersistence.mqh"
+#include "..\Include\M5SetupPersistence.mqh"
 
 int g_passed=0;
 int g_failed=0;
