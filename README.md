@@ -1,9 +1,9 @@
 # MT5 Price Action Hybrid EA
 
-**Project:** Price Action Hybrid EA v1.2  
+**Project:** Price Action Hybrid EA v1.3  
 **Platform:** MetaTrader 5 (MQL5)  
 **Initial instrument:** XAUUSD and broker-validated XAUUSD/GOLD symbol variants  
-**Development status:** Signal-engine prototype — not production-ready; MT5 compile and Strategy Tester validation pending.
+**Development status:** Signal-only primary strategy integration — MetaEditor compile and MT5 runtime validation pending; not production-ready.
 
 > **Risk warning:** Automated trading can lose money rapidly. This repository is an engineering project, not financial advice or a promise of profitability. Run in Strategy Tester and on a demo account before considering live use. Live trading must remain explicitly disabled by default.
 
@@ -34,6 +34,7 @@ Signals use closed candles only. H1/M15/M5 alignment, setup identity, and duplic
 
 Read [AGENTS.md](AGENTS.md) before making code changes.
 
+- [Signal-only EA integration](Documentation/SIGNAL_ONLY_EA_INTEGRATION.md)
 - [Secondary strategy modules](Documentation/SECONDARY_STRATEGIES.md)
 - [Secondary strategy fixture](Tests/SecondaryStrategiesFixture.mq5)
 - [M5 entry signal engine](Documentation/M5_ENTRY_SIGNAL_ENGINE.md)
@@ -54,7 +55,7 @@ Read [AGENTS.md](AGENTS.md) before making code changes.
 
 ## Repository status
 
-The repository currently contains the engineering specification, initial price-action primitives, protected-swing state machine, H1/M15 context, M5 sweep/CHoCH/FVG signal engine, BOS/OB, breakout/retest and trend-pullback signal modules, strategy arbitration, persistence modules, and synthetic MT5 fixture scripts. It does **not** contain a completed or validated trading EA. MetaEditor compilation and MT5 Strategy Tester execution remain pending. No compile, backtest, or broker-compatibility claim is valid until the corresponding test has actually been run and its evidence recorded.
+The repository contains the engineering specification, price-action primitives, H1/M15 context, the primary M5 sweep/CHoCH/FVG signal engine, secondary signal modules, arbitration, persistence, fixtures, and a signal-only EA runtime integration. The EA does **not** place trades and is not production-ready. MetaEditor compilation of this integrated EA and MT5 runtime/Strategy Tester validation are pending. No compile, backtest, or broker-compatibility claim is valid until the corresponding test has actually been run and its evidence recorded.
 
 ## License
 

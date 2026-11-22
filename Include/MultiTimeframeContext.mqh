@@ -72,7 +72,15 @@ bool PA_AdvanceTimeframeState(const MqlRates &rates[],
       PA_StructureSnapshot ignored;
       if(!PA_UpdateStructureState(window,window_count,lookback,state,ignored))
         {
-         // A failed/duplicate historical step is not silently accepted.
+         // During a full rebuild, early candles may not yet have both a
+         // confirmed swing high and swing low. The structure engine has
+         // retained any one-sided pivot it found; continue forward until
+         // both anchors exist. Once anchors exist, an unprocessed failure
+         // is a genuine data/state error and must fail closed.
+         if(state.latest_swing_high_time <= 0 ||
+            state.latest_swing_low_time <= 0)
+            continue;
+
          if(state.last_processed_bar_time < rates[signal_shift].time)
             return false;
         }
