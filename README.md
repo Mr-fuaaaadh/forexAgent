@@ -34,6 +34,7 @@ Signals use closed candles only. H1/M15/M5 alignment, setup identity, and duplic
 
 Read [AGENTS.md](AGENTS.md) before making code changes.
 
+- [Secondary strategy modules](Documentation/SECONDARY_STRATEGIES.md)
 - [M5 entry signal engine](Documentation/M5_ENTRY_SIGNAL_ENGINE.md)
 - [Multi-timeframe context engine](Documentation/MULTI_TIMEFRAME_CONTEXT.md)
 - [Market structure engine](Documentation/MARKET_STRUCTURE_ENGINE.md)
@@ -52,7 +53,7 @@ Read [AGENTS.md](AGENTS.md) before making code changes.
 
 ## Repository status
 
-The repository currently contains the engineering specification, initial price-action primitives, protected-swing state machine, H1/M15 context, M5 sweep/CHoCH/FVG signal engine, persistence modules, and synthetic MT5 fixture scripts. It does **not** contain a completed or validated trading EA. MetaEditor compilation and MT5 Strategy Tester execution remain pending. No compile, backtest, or broker-compatibility claim is valid until the corresponding test has actually been run and its evidence recorded.
+The repository currently contains the engineering specification, initial price-action primitives, protected-swing state machine, H1/M15 context, M5 sweep/CHoCH/FVG signal engine, BOS/OB, breakout/retest and trend-pullback signal modules, strategy arbitration, persistence modules, and synthetic MT5 fixture scripts. It does **not** contain a completed or validated trading EA. MetaEditor compilation and MT5 Strategy Tester execution remain pending. No compile, backtest, or broker-compatibility claim is valid until the corresponding test has actually been run and its evidence recorded.
 
 ## License
 
