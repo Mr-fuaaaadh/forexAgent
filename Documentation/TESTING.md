@@ -21,7 +21,16 @@ Never claim a compile or backtest passed unless it was actually run. Record term
 - Pending setup state and last emitted setup ID survive terminal restart.
 - Setup expiry and opposite M5 CHoCH invalidate pending setup.
 
-## Required scenarios
+## Secondary strategy scenarios
+- New M15 BOS captures the nearest opposing candle as a frozen order-block zone.
+- The same M15 BOS event is never captured twice.
+- Order-block retest requires overlap and directional M5 confirmation; structural invalidation cancels the setup.
+- Breakout requires M15 body greater than 0.5 ATR, then a later M5 retest and confirmation.
+- Trend continuation requires a later pullback, higher low/lower high, and close beyond the prior M5 extreme.
+- A secondary setup cannot trigger on the M5 candle that closes the M15 BOS; it must wait for a later M5 candle.
+- Secondary pending setups expire and invalidate on structural failure or H1/M15 context flip.
+- Same-direction signals resolve by priority; any opposing qualified direction blocks all signals.
+- Primary sweep/CHoCH/FVG signal outranks every secondary signal.\n\n## Required scenarios
 - Wick crosses swing but candle does not close beyond: no BOS.
 - Pivot has fewer than 3 right-side closed bars: not confirmed.
 - Missing/stale calendar: no new entries.
