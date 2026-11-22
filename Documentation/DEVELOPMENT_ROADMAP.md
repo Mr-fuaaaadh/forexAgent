@@ -18,7 +18,9 @@
 - [ ] Complete strategy-level CHoCH validation.
 - [x] Add deterministic synthetic MT5 fixture script.
 - [ ] Run fixture in MT5 and record MetaEditor/terminal build evidence.
-- [ ] H1/M15 directional arbitration.
+- [x] H1/M15 directional arbitration with conflict rejection and neutral-H1 reversal sequence.
+- [x] Terminal persistence for timeframe structure state.
+- [ ] Validate persistence/replay and arbitration fixtures in MT5.
 - [ ] Setup IDs and duplicate prevention.
 - [ ] Deterministic tests/fixtures.
 
