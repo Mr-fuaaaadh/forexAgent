@@ -14,7 +14,7 @@ Never claim a compile or backtest passed unless it was actually run. Record term
 ## M5 signal engine scenarios
 - Bullish and bearish sweeps followed by later directional CHoCH, completed directional FVG, and subsequent directional FVG retest emit signals only.
 - Sweep and CHoCH on the same candle must not satisfy the staged setup.
-- Higher-timeframe conflict invalidates a pending setup and never emits a signal.
+- Higher-timeframe conflict invalidates a pending setup and never emits a signal.\n- An opposite but otherwise aligned H1/M15 context invalidates a pending directional setup.\n- A close through the sweep extreme or FVG far boundary invalidates the setup.
 - Duplicate/old M5 bar timestamps never emit a second signal.
 - Pending setup state and last emitted setup ID survive terminal restart.
 - Setup expiry and opposite M5 CHoCH invalidate pending setup.\n\n## Required scenarios
