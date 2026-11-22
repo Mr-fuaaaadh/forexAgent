@@ -40,3 +40,11 @@ A reversal exit requires M5 CHoCH followed by M15 BOS/qualifying confirmation ag
 
 ## Non-repainting requirements
 Use explicit shifts and completed candle timestamps. Never use ZigZag/future-dependent pivots as confirmed signals. Restart must not reprocess the last processed M5 candle.
+
+
+## Root EA runtime integration
+The root `PriceActionHybridEA.mq5` evaluates the primary sweep/CHoCH/FVG state machine and the three secondary strategies on the same newly closed M5 candle. The secondary dispatcher receives the latest M15 structure state, H1/M15 context, completed M15/M5 rate series, and a same-bar M5 structure snapshot generated from a copy of the M5 state. This avoids advancing the live M5 structure state twice.
+
+All qualified outputs pass through `PA_ArbitrateAllStrategies` once per M5 decision. Any opposing qualified directions reject the entire decision; otherwise the configured strategy priority selects one signal. Secondary state is restored at initialization, persisted during each secondary evaluation, and saved again at deinitialization. The root log reports the selected strategy and its signal zone/invalidation. This remains signal-only: no order API is called, and both trading inputs must remain false.
+
+Validation boundary: fixture tests validate the strategy modules and arbitration behavior, but the root EA integration still requires MetaEditor compilation, fixture execution, and XAUUSD demo-chart observation. A successful compile is not evidence of trading profitability.

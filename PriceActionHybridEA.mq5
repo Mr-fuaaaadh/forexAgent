@@ -9,6 +9,7 @@
 
 #include "Include/M5EntrySignal.mqh"
 #include "Include/M5SetupPersistence.mqh"
+#include "Include/SecondaryStrategyRuntime.mqh"
 
 input bool   InpEnableTrading    = false;
 input bool   InpAllowLiveTrading = false;
@@ -24,6 +25,7 @@ PA_StructureState   g_h1_structure;
 PA_StructureState   g_m15_structure;
 PA_StructureState   g_m5_structure;
 PA_M5SetupState     g_m5_setup;
+PA_SecondaryStrategyState g_secondary_state;
 bool                g_runtime_ready = false;
 
 bool PA_IsSupportedGoldSymbol(const string symbol)
@@ -48,11 +50,14 @@ bool PA_LoadRuntimeState()
    PA_ResetStructureState(g_m15_structure);
    PA_ResetStructureState(g_m5_structure);
    PA_ResetM5SetupState(g_m5_setup);
+   PA_ResetSecondaryStrategyState(g_secondary_state);
 
    PA_LoadStructureState(g_symbol,PERIOD_H1,InpMagicNumber,g_h1_structure);
    PA_LoadStructureState(g_symbol,PERIOD_M15,InpMagicNumber,g_m15_structure);
    PA_LoadStructureState(g_symbol,PERIOD_M5,InpMagicNumber,g_m5_structure);
    PA_LoadM5SetupState(g_symbol,InpMagicNumber,g_m5_setup);
+   if(!PA_LoadSecondaryStrategyState(g_symbol,InpMagicNumber,g_secondary_state))
+      PA_ResetSecondaryStrategyState(g_secondary_state);
    return true;
   }
 
@@ -115,51 +120,95 @@ void PA_ProcessNewM5Bar()
      }
    const double spread_price = ask - bid;
 
-   PA_M5Signal signal;
-   const bool evaluated = PA_EvaluateM5EntrySignal(
-      g_symbol,m5_rates,copied,spread_price,context,
-      g_m5_structure,g_m5_setup,signal,InpMaximumSetupBars);
+   // Build the current closed-M5 structure snapshot on a copy. The primary
+   // evaluator below advances the real state exactly once; secondary
+   // confirmations consume this same-bar snapshot without double-updating it.
+   PA_StructureState m5_preview_state = g_m5_structure;
+   PA_StructureSnapshot m5_snapshot;
+   PA_ResetStructureSnapshot(m5_snapshot);
+   PA_UpdateStructureState(m5_rates,copied,40,m5_preview_state,m5_snapshot);
 
-   // Persist both state machines before reporting a qualified signal.
+   PA_M5Signal primary_signal;
+   const bool primary_evaluated = PA_EvaluateM5EntrySignal(
+      g_symbol,m5_rates,copied,spread_price,context,
+      g_m5_structure,g_m5_setup,primary_signal,InpMaximumSetupBars);
+
+   // Save primary state before any signal can be reported.
    const bool structure_saved = PA_SaveStructureState(
       g_symbol,PERIOD_M5,InpMagicNumber,g_m5_structure);
    const bool setup_saved = PA_SaveM5SetupState(
       g_symbol,InpMagicNumber,g_m5_setup);
-
    if(!structure_saved || !setup_saved)
      {
-      PrintFormat("SIGNAL BLOCKED: persistence failure (structure=%s setup=%s).",
+      PrintFormat("SIGNAL BLOCKED: primary persistence failure (structure=%s setup=%s).",
                   structure_saved ? "OK" : "FAILED",
                   setup_saved ? "OK" : "FAILED");
       return;
      }
 
-   if(!evaluated)
+   // Secondary setups are driven by the latest completed M15 BOS and the
+   // same completed M5 candle used by the primary strategy.
+   MqlRates m15_rates[];
+   ArraySetAsSeries(m15_rates,true);
+   const int m15_copied = CopyRates(g_symbol,PERIOD_M15,0,InpHistoryBars,m15_rates);
+
+   PA_StrategySignal secondary_signal;
+   PA_ResetStrategySignal(secondary_signal);
+   bool secondary_evaluated = false;
+   if(m15_copied >= 20)
      {
-      PrintFormat("M5 bar %s not evaluated: %s",
-                  TimeToString(m5_rates[1].time,TIME_DATE|TIME_MINUTES),
-                  signal.rejection_reason);
+      secondary_evaluated = PA_RunSecondaryStrategies(
+         g_symbol,InpMagicNumber,m15_rates,m15_copied,g_m15_structure,
+         context,m5_rates,copied,spread_price,m5_snapshot,
+         g_secondary_state,secondary_signal);
+     }
+   else
+      secondary_signal.rejection_reason = "M15_HISTORY_INSUFFICIENT_FOR_SECONDARY";
+
+   // One arbitration point for every strategy on this closed M5 bar.
+   PA_StrategySignal secondary_candidates[1];
+   PA_ResetStrategySignal(secondary_candidates[0]);
+   int secondary_count = 0;
+   if(secondary_evaluated)
+     {
+      secondary_candidates[0] = secondary_signal;
+      secondary_count = 1;
+     }
+
+   PA_StrategySignal selected;
+   const bool has_signal = PA_ArbitrateAllStrategies(
+      primary_signal,secondary_candidates,secondary_count,selected);
+
+   if(has_signal)
+     {
+      const int digits = (int)SymbolInfoInteger(g_symbol,SYMBOL_DIGITS);
+      PrintFormat("SIGNAL ONLY | %s | strategy=%s | symbol=%s | bar=%s | setup=%s | zone=[%.*f,%.*f] | invalidation=%.*f | context=%s | NO ORDER SENT",
+         selected.direction > 0 ? "BUY" : "SELL",
+         PA_StrategyName(selected.strategy),
+         g_symbol,
+         TimeToString(selected.signal_bar_time,TIME_DATE|TIME_MINUTES),
+         selected.setup_id,
+         digits,selected.zone_low,
+         digits,selected.zone_high,
+         digits,selected.invalidation_level,
+         EnumToString(context.context));
       return;
      }
 
-   if(signal.signal == PA_ENTRY_BUY || signal.signal == PA_ENTRY_SELL)
-     {
-      PrintFormat("SIGNAL ONLY | %s | strategy=SWEEP_CHOCH_FVG | symbol=%s | bar=%s | setup=%s | entry-zone=[%.*f,%.*f] | invalidation=%.*f | context=%s | NO ORDER SENT",
-         signal.signal == PA_ENTRY_BUY ? "BUY" : "SELL",
-         g_symbol,
-         TimeToString(signal.signal_bar_time,TIME_DATE|TIME_MINUTES),
-         signal.setup_id,
-         (int)SymbolInfoInteger(g_symbol,SYMBOL_DIGITS),signal.fvg_lower,
-         (int)SymbolInfoInteger(g_symbol,SYMBOL_DIGITS),signal.fvg_upper,
-         (int)SymbolInfoInteger(g_symbol,SYMBOL_DIGITS),signal.sweep_extreme,
-         EnumToString(context.context));
-     }
-   else
-     {
-      PrintFormat("NO SIGNAL | bar=%s | context=%s | reason=%s",
-         TimeToString(m5_rates[1].time,TIME_DATE|TIME_MINUTES),
-         EnumToString(context.context),signal.rejection_reason);
-     }
+   string arbitration_reason = selected.rejection_reason;
+   if(arbitration_reason == "")
+      arbitration_reason = secondary_signal.rejection_reason;
+   if(arbitration_reason == "")
+      arbitration_reason = primary_signal.rejection_reason;
+   if(arbitration_reason == "")
+      arbitration_reason = primary_evaluated ? "NO_QUALIFIED_STRATEGY" : "PRIMARY_EVALUATION_SKIPPED";
+
+   PrintFormat("NO SIGNAL | bar=%s | context=%s | reason=%s | primary=%s | secondary=%s",
+      TimeToString(m5_rates[1].time,TIME_DATE|TIME_MINUTES),
+      EnumToString(context.context),
+      arbitration_reason,
+      primary_signal.rejection_reason,
+      secondary_signal.rejection_reason);
   }
 
 int OnInit()
@@ -222,6 +271,7 @@ void OnDeinit(const int reason)
       PA_SaveStructureState(g_symbol,PERIOD_M15,InpMagicNumber,g_m15_structure);
       PA_SaveStructureState(g_symbol,PERIOD_M5,InpMagicNumber,g_m5_structure);
       PA_SaveM5SetupState(g_symbol,InpMagicNumber,g_m5_setup);
+      PA_SaveSecondaryStrategyState(g_symbol,InpMagicNumber,g_secondary_state);
       GlobalVariablesFlush();
      }
    PrintFormat("Signal-only EA deinitialized. Reason=%d",reason);
