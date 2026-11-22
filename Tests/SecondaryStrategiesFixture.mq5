@@ -6,7 +6,7 @@
 #property strict
 #property script_show_inputs
 
-#include "..\\Include\\SecondaryStrategyRuntime.mqh"
+#include "..\Include\SecondaryStrategyRuntime.mqh"
 
 int g_passed=0;
 int g_failed=0;
