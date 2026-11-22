@@ -53,6 +53,65 @@ void OnStart()
    const datetime now=TimeCurrent();
    BuildM5(rates,now);
 
+   // Confirm that a new M15 BOS captures all three independent setup types.
+   MqlRates m15_rates[];
+   ArrayResize(m15_rates,40);
+   ArraySetAsSeries(m15_rates,true);
+   for(int i=0;i<40;i++)
+     {
+      m15_rates[i].time=now-(datetime)((i-1)*900);
+      m15_rates[i].open=20.0;
+      m15_rates[i].high=23.0;
+      m15_rates[i].low=19.0;
+      m15_rates[i].close=21.0;
+      m15_rates[i].tick_volume=100;
+      m15_rates[i].spread=5;
+      m15_rates[i].real_volume=100;
+     }
+   m15_rates[2].open=22.0;
+   m15_rates[2].close=20.0;
+   m15_rates[2].high=22.5;
+   m15_rates[2].low=19.0;
+   m15_rates[1].open=20.0;
+   m15_rates[1].close=26.0;
+   m15_rates[1].high=27.0;
+   m15_rates[1].low=19.5;
+
+   PA_StructureState m15_state;
+   PA_ResetStructureState(m15_state);
+   m15_state.direction=1;
+   m15_state.latest_swing_high=25.0;
+   m15_state.latest_swing_low=15.0;
+   m15_state.latest_swing_high_time=now-3600;
+   m15_state.latest_swing_low_time=now-5400;
+   m15_state.last_structure_event_time=m15_rates[1].time;
+   m15_state.last_processed_bar_time=m15_rates[1].time;
+   m15_state.last_break_type=PA_BREAK_BOS_BULLISH;
+
+   PA_MultiTimeframeSnapshot context;
+   context.context=PA_CONTEXT_BULLISH_ALIGNED;
+   context.h1_direction=1;
+   context.m15_direction=1;
+   context.h1_bar_time=now-3600;
+   context.m15_bar_time=m15_rates[1].time;
+   context.m15_confirmed_reversal_time=0;
+   context.h1_last_break=PA_BREAK_BOS_BULLISH;
+   context.m15_last_break=PA_BREAK_BOS_BULLISH;
+
+   PA_SecondaryStrategyState captured;
+   PA_ResetSecondaryStrategyState(captured);
+   PA_CaptureM15BOS(_Symbol,m15_rates,ArraySize(m15_rates),
+                    m15_state,context,captured);
+   Check("M15 BOS captures OB, breakout and continuation setups",
+         captured.order_block.stage==PA_SECONDARY_WAIT_RETEST &&
+         captured.breakout.stage==PA_SECONDARY_WAIT_RETEST &&
+         captured.continuation.stage==PA_SECONDARY_WAIT_PULLBACK);
+
+   PA_CaptureM15BOS(_Symbol,m15_rates,ArraySize(m15_rates),
+                    m15_state,context,captured);
+   Check("same M15 BOS event is not captured twice",
+         captured.last_seen_m15_event_time==m15_state.last_structure_event_time);
+
    // BOS -> order-block retest.
    PA_SecondarySetup ob;
    PA_ResetSecondarySetup(ob);
