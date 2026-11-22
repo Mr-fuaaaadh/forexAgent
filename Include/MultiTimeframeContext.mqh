@@ -30,36 +30,62 @@ struct PA_MultiTimeframeSnapshot
    datetime        m15_confirmed_reversal_time;
   };
 
-// Reconstruct a missing timeframe state chronologically using only bars
-// available at each historical close. This prevents future-bar leakage.
-// A bounded CopyRates request is used; if insufficient data is available,
-// callers must treat the context as unavailable and block new entries.
+// Process closed candles chronologically. For each historical signal,
+// build a series window whose index 1 is that signal and whose index 0 is
+// the next candle. The structure function never reads index 0 for signals.
+bool PA_AdvanceTimeframeState(const MqlRates &rates[],
+                              const int count,
+                              const int lookback,
+                              const datetime after_time,
+                              PA_StructureState &state)
+  {
+   if(count < 12 || lookback < 4)
+      return false;
+
+   int oldest_unprocessed_shift = 0;
+   for(int shift = count - 8; shift >= 1; shift--)
+     {
+      if(after_time <= 0 || rates[shift].time > after_time)
+         oldest_unprocessed_shift = shift;
+      else
+         break;
+     }
+
+   if(oldest_unprocessed_shift == 0)
+      return (state.last_processed_bar_time > 0);
+
+   for(int signal_shift = oldest_unprocessed_shift;
+       signal_shift >= 1; signal_shift--)
+     {
+      if(after_time > 0 && rates[signal_shift].time <= after_time)
+         continue;
+
+      const int window_count = count - signal_shift + 1;
+      MqlRates window[];
+      ArrayResize(window,window_count);
+      ArraySetAsSeries(window,true);
+
+      for(int i = 0; i < window_count; i++)
+         window[i] = rates[signal_shift - 1 + i];
+
+      PA_StructureSnapshot ignored;
+      if(!PA_UpdateStructureState(window,window_count,lookback,state,ignored))
+        {
+         // A failed/duplicate historical step is not silently accepted.
+         if(state.last_processed_bar_time < rates[signal_shift].time)
+            return false;
+        }
+     }
+   return (state.last_processed_bar_time > 0);
+  }
+
 bool PA_RebuildTimeframeState(const MqlRates &rates[],
                               const int count,
                               const int lookback,
                               PA_StructureState &state)
   {
    PA_ResetStructureState(state);
-   if(count < 12 || lookback < 4)
-      return false;
-
-   // Process oldest usable signal candle to the newest completed candle.
-   for(int signal_shift = count - 8; signal_shift >= 1; signal_shift--)
-     {
-      const int window_count = count - signal_shift + 1;
-      MqlRates window[];
-      ArrayResize(window,window_count);
-      ArraySetAsSeries(window,true);
-
-      // window[0] is the candle immediately after the historical signal
-      // (forming at that historical instant); window[1] is the signal.
-      for(int i = 0; i < window_count; i++)
-         window[i] = rates[signal_shift - 1 + i];
-
-      PA_StructureSnapshot ignored;
-      PA_UpdateStructureState(window,window_count,lookback,state,ignored);
-     }
-   return (state.last_processed_bar_time > 0);
+   return PA_AdvanceTimeframeState(rates,count,lookback,0,state);
   }
 
 // Load saved state or reconstruct it. Then advance exactly once if a new
@@ -83,32 +109,35 @@ bool PA_UpdateTimeframeState(const string symbol,
       return false;
 
    bool restored = PA_LoadStructureState(symbol,timeframe,magic_number,state);
+   if(restored &&
+      (state.last_processed_bar_time < rates[copied-1].time ||
+       state.last_processed_bar_time > rates[1].time))
+      restored = false;
+
    if(!restored)
      {
       if(!PA_RebuildTimeframeState(rates,copied,swing_lookback,state))
          return false;
      }
-
-   PA_ResetStructureSnapshot(snapshot);
-   if(rates[1].time > state.last_processed_bar_time)
-     {
-      if(!PA_UpdateStructureState(rates,copied,swing_lookback,state,snapshot))
-         return false;
-     }
    else
      {
-      snapshot.resulting_direction = state.direction;
-      snapshot.break_type = state.last_break_type;
-      snapshot.signal_bar_time = state.last_processed_bar_time;
-      snapshot.protected_high = state.protected_high;
-      snapshot.protected_low = state.protected_low;
-      snapshot.has_swing_high = (state.latest_swing_high_time > 0);
-      snapshot.has_swing_low = (state.latest_swing_low_time > 0);
-      snapshot.swing_high = state.latest_swing_high;
-      snapshot.swing_low = state.latest_swing_low;
-      snapshot.swing_high_time = state.latest_swing_high_time;
-      snapshot.swing_low_time = state.latest_swing_low_time;
+      if(!PA_AdvanceTimeframeState(rates,copied,swing_lookback,
+                                   state.last_processed_bar_time,state))
+         return false;
      }
+
+   PA_ResetStructureSnapshot(snapshot);
+   snapshot.resulting_direction = state.direction;
+   snapshot.break_type = state.last_break_type;
+   snapshot.signal_bar_time = state.last_processed_bar_time;
+   snapshot.protected_high = state.protected_high;
+   snapshot.protected_low = state.protected_low;
+   snapshot.has_swing_high = (state.latest_swing_high_time > 0);
+   snapshot.has_swing_low = (state.latest_swing_low_time > 0);
+   snapshot.swing_high = state.latest_swing_high;
+   snapshot.swing_low = state.latest_swing_low;
+   snapshot.swing_high_time = state.latest_swing_high_time;
+   snapshot.swing_low_time = state.latest_swing_low_time;
 
    if(!PA_SaveStructureState(symbol,timeframe,magic_number,state))
       return false;
