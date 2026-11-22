@@ -118,6 +118,17 @@ string PA_MakeSetupId(const string symbol,
                        (long)fvg_time);
   }
 
+uint PA_M5SetupIdHash(const string setup_id)
+  {
+   uint hash=2166136261;
+   for(int i=0;i<StringLen(setup_id);i++)
+     {
+      hash^=(uint)StringGetCharacter(setup_id,i);
+      hash=(uint)(hash*16777619);
+     }
+   return hash;
+  }
+
 void PA_RejectM5Setup(PA_M5SetupState &state,const string reason,
                       PA_M5Signal &signal)
   {
@@ -306,7 +317,6 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
       if(bar_time <= setup.fvg_time)
          return true;
 
-      const double midpoint = (setup.fvg_lower+setup.fvg_upper)/2.0;
       bool retest_rejection = false;
       if(setup.direction > 0)
          retest_rejection = (rates[1].low <= setup.fvg_upper &&
@@ -327,7 +337,9 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
                                              setup.sweep_time,
                                              setup.choch_time,
                                              setup.fvg_time);
-      if(setup_id == setup.last_emitted_setup_id)
+      const string persisted_id_marker=StringFormat("HASH:%I64d",(long)PA_M5SetupIdHash(setup_id));
+      if(setup_id == setup.last_emitted_setup_id ||
+         persisted_id_marker == setup.last_emitted_setup_id)
         {
          PA_RejectM5Setup(setup,"DUPLICATE_SETUP_ID",signal);
          return true;
