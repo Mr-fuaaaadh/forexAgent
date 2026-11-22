@@ -12,7 +12,12 @@
 - [ ] Structured logging and persistent state.
 
 ## Phase 2 — deterministic price-action engine
-- [x] Initial closed-bar primitives: confirmed swings, BOS/CHoCH candidates, sweep, and FVG.\n- [x] Initial protected-swing state machine and duplicate-bar guard.\n- [ ] Review protected-swing semantics against additional synthetic and historical fixtures.\n- [ ] Complete strategy-level CHoCH validation.\n- [x] Add deterministic synthetic MT5 fixture script.\n- [ ] Run fixture in MT5 and record MetaEditor/terminal build evidence.
+- [x] Initial closed-bar primitives: confirmed swings, BOS/CHoCH candidates, sweep, and FVG.
+- [x] Initial protected-swing state machine and duplicate-bar guard.
+- [ ] Review protected-swing semantics against additional synthetic and historical fixtures.
+- [ ] Complete strategy-level CHoCH validation.
+- [x] Add deterministic synthetic MT5 fixture script.
+- [ ] Run fixture in MT5 and record MetaEditor/terminal build evidence.
 - [ ] H1/M15 directional arbitration.
 - [ ] Setup IDs and duplicate prevention.
 - [ ] Deterministic tests/fixtures.
