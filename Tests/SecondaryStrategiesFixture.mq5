@@ -174,6 +174,10 @@ void OnStart()
    Check("trend pullback stage captured",
          !pullback_seen && trend.stage==PA_SECONDARY_WAIT_CONTINUATION);
 
+   // Advance the series by one completed M5 candle. The prior pullback
+   // candle becomes shift 2; the continuation candle is the new shift 1.
+   rates[2].time=rates[1].time;
+   rates[1].time=rates[2].time+300;
    rates[2].high=21.0;
    rates[1].low=19.8;
    rates[1].open=21.0;
