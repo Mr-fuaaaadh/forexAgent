@@ -328,6 +328,13 @@ bool PA_EvaluateBOSOrderBlockRetest(const string symbol,
 
    const double tolerance=MathMax(2.0*spread_price,
       0.05*PA_SecondaryATR(m5_rates,m5_count,14));
+   if((setup.direction>0 && m5_rates[1].close<setup.zone_low) ||
+      (setup.direction<0 && m5_rates[1].close>setup.zone_high))
+     {
+      PA_ResetSecondarySetup(setup);
+      signal.rejection_reason="ORDER_BLOCK_INVALIDATED";
+      return false;
+     }
    const bool touched=(m5_rates[1].low<=setup.zone_high+tolerance &&
                        m5_rates[1].high>=setup.zone_low-tolerance);
    if(!touched)
@@ -376,6 +383,13 @@ bool PA_EvaluateBreakoutRetest(const string symbol,
    const double tolerance=MathMax(2.0*spread_price,
       0.10*PA_SecondaryATR(m5_rates,m5_count,14));
    const double level=setup.reference_level;
+   if((setup.direction>0 && m5_rates[1].close<level-tolerance) ||
+      (setup.direction<0 && m5_rates[1].close>level+tolerance))
+     {
+      PA_ResetSecondarySetup(setup);
+      signal.rejection_reason="BREAKOUT_LEVEL_INVALIDATED";
+      return false;
+     }
    const bool retest=setup.direction>0
       ? (m5_rates[1].low<=level+tolerance &&
          m5_rates[1].close>level)
@@ -426,6 +440,13 @@ bool PA_EvaluateTrendPullback(const string symbol,
       return false;
    const double tolerance=MathMax(2.0*spread_price,0.15*atr);
    const double level=setup.reference_level;
+   if((setup.direction>0 && m5_rates[1].close<level-2.0*tolerance) ||
+      (setup.direction<0 && m5_rates[1].close>level+2.0*tolerance))
+     {
+      PA_ResetSecondarySetup(setup);
+      signal.rejection_reason="TREND_PULLBACK_LEVEL_INVALIDATED";
+      return false;
+     }
 
    if(setup.stage==PA_SECONDARY_WAIT_PULLBACK)
      {
