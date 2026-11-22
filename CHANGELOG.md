@@ -3,6 +3,9 @@
 All notable project changes are recorded here.
 
 ## Unreleased
+- Recorded user-reported MetaEditor strict compile evidence (0 errors, 0 warnings) and XAUUSD chart initialization on 2026-11-22.
+- Added a validation log documenting the Strategy Tester history/tick-data limitations; no profitability or full-period backtest claim is made.
+- Updated the roadmap to distinguish compile/initialization success from pending fixture, persistence/replay, sustained forward, and full Strategy Tester validation.
 - Added BOS/order-block retest, breakout/retest, and trend-continuation/pullback signal modules.
 - Added unified strategy priority arbitration: sweep/FVG > BOS/OB > breakout/retest > trend pullback; opposing qualified directions fail closed.
 - Added M15 BOS event capture, post-BOS M5 confirmation timing, setup expiry/invalidation, and restart persistence for secondary strategies.
@@ -21,7 +24,6 @@ All notable project changes are recorded here.
 - Added `Tests/MarketStructureFixture.mq5` synthetic test script for both directional BOS/CHoCH transitions; execution in MT5 is pending.
 - Added initial closed-bar market-structure primitives in `Include/MarketStructure.mqh`.
 - Added market-structure engine documentation and deterministic test cases.
-- MetaEditor compilation and MT5 Strategy Tester validation remain pending.
 - Initialized project specification and AI-agent workflow.
 - Documented strategy, risk, broker compatibility, installation, configuration, testing, troubleshooting, and roadmap.
 - EA implementation and validation are not yet complete.

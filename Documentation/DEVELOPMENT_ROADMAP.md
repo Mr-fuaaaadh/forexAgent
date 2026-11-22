@@ -47,6 +47,7 @@
 - [x] Breakout + retest signal module (MT5 execution validation pending).
 - [x] Trend continuation + pullback signal module (MT5 execution validation pending).
 - [x] Priority arbitration and conflict rejection.
+- [ ] Wire all four strategy signals into the root EA runtime and verify one shared arbitration decision per closed M5 bar.
 
 ## Phase 5 — filters and exits
 - [ ] Spread/ATR and slippage filters.
@@ -55,9 +56,17 @@
 - [ ] Structural and price-action exits.
 
 ## Phase 6 — validation
-- [ ] MetaEditor strict compile.
-- [ ] Strategy Tester suite and reproducible reports.
+- [x] MetaEditor strict compile: user-reported 0 errors and 0 warnings on 2026-11-22.
+- [x] XAUUSD chart initialization: user-reported `SIGNAL-ONLY EA READY` on 2026-11-22.
+- [ ] Validate closed-M5-bar signal processing over a sustained demo forward run.
+- [ ] Run all synthetic fixtures in MetaEditor/MT5 and record PASS/FAIL output.
+- [ ] Validate persistence/replay after EA and terminal restart.
+- [ ] Strategy Tester suite with sufficient broker history and reproducible reports.
 - [ ] Hedging/netting and broker compatibility matrix.
-- [ ] Demo forward test and documented limitations.
+- [ ] Demo forward test across sessions and documented limitations.
+
+## Current evidence limitations
+
+The 2026-11-22 Strategy Tester log requested 2024-01-01 through 2026-11-21, while the reported synchronized history began 2024-06-21 and ended 2026-07-27. The log also reported no real ticks and generated tick modelling. This is not a complete-period or real-tick validation. See `VALIDATION_LOG.md`.
 
 Live trading is outside the initial development target and requires separate explicit authorization and review.
