@@ -35,7 +35,9 @@ Signals use closed candles only. H1/M15/M5 alignment, setup identity, and duplic
 Read [AGENTS.md](AGENTS.md) before making code changes.
 
 - [Multi-timeframe context engine](Documentation/MULTI_TIMEFRAME_CONTEXT.md)
-- [Market structure engine](Documentation/MARKET_STRUCTURE_ENGINE.md)\n- [Synthetic MT5 fixture](Tests/MarketStructureFixture.mq5)\n- [Architecture](Documentation/ARCHITECTURE.md)
+- [Market structure engine](Documentation/MARKET_STRUCTURE_ENGINE.md)
+- [Synthetic MT5 fixture](Tests/MarketStructureFixture.mq5)
+- [Architecture](Documentation/ARCHITECTURE.md)
 - [Strategy rules](Documentation/STRATEGY_RULES.md)
 - [Risk management](Documentation/RISK_MANAGEMENT.md)
 - [Broker compatibility](Documentation/BROKER_COMPATIBILITY.md)
@@ -49,7 +51,7 @@ Read [AGENTS.md](AGENTS.md) before making code changes.
 
 ## Repository status
 
-This first commit establishes the engineering specification and agent workflow. It does **not** contain a completed or validated trading EA. Implementation will be delivered in small, reviewable stages with tests and documentation. No compile, backtest, or broker-compatibility claim is valid until the corresponding test has actually been run and its evidence recorded.
+The repository currently contains the engineering specification, initial price-action primitives, protected-swing state machine, H1/M15 context and persistence modules, and synthetic MT5 fixture scripts. It does **not** contain a completed or validated trading EA. MetaEditor compilation and MT5 Strategy Tester execution remain pending. No compile, backtest, or broker-compatibility claim is valid until the corresponding test has actually been run and its evidence recorded.
 
 ## License
 
