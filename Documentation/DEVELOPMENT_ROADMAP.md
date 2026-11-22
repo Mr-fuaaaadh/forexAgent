@@ -24,7 +24,7 @@
 - [x] M5 sweep → later CHoCH → FVG → retest signal state machine (primary strategy only).
 - [x] M5 setup persistence and setup-ID duplicate marker.
 - [x] Add bullish and bearish M5 sequence fixtures.
-- [ ] Add more edge-case fixtures and run all fixtures in MT5.
+- [x] Add H1/M15 direction-flip invalidation fixture.\n- [ ] Add sweep/FVG invalidation edge-case fixtures and run all fixtures in MT5.
 - [ ] Setup IDs and duplicate prevention for all four strategy modules.
 - [ ] Deterministic tests/fixtures.
 
