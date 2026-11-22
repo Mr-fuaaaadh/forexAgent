@@ -21,8 +21,9 @@ This document defines the acceptance contract for the demo-only execution layer.
 
 ## Daily guard
 
-- Baseline is account equity at the first EA initialization of each broker-server calendar day.
+- Baseline is account equity captured during the first minute (00:00-00:01) of each broker-server calendar day.
 - Baseline day and equity are persisted in terminal global variables.
+- If no baseline exists and the EA is initialized after 00:01 server time, initialization is blocked for that day rather than substituting mid-session equity.
 - Current equity includes floating P/L; equity drawdown of 2% or more locks entries and requests closure of managed positions.
 - Missing or uncalculable protective SL requests closure of the affected managed position(s).
 - Persistence failure fails closed.
@@ -44,6 +45,6 @@ This document defines the acceptance contract for the demo-only execution layer.
 ## Known limitations requiring review
 
 - Setup reservation is intentionally conservative and may suppress a retry after a broker rejection; manual inspection is required before any operator clears a reservation.
-- Daily equity baseline is first captured when this EA initializes on a new server day. To represent the true midnight equity if the EA is not running at midnight, a separate account-history based daily baseline implementation is required.
+- The EA must be attached and running within the first minute of broker-server midnight to capture the daily baseline. If that window is missed, the execution layer fails closed until the next server day. Verify broker-server time before planning the forward test.
 - The execution module requires hedging mode. Netting accounts are blocked.
 - Broker fill policies, partial fills, and stop-level behavior must be verified on the target broker. No MetaEditor compiler or live MT5 terminal is available in this development environment.
