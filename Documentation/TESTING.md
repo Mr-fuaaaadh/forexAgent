@@ -30,7 +30,9 @@ Never claim a compile or backtest passed unless it was actually run. Record term
 - A secondary setup cannot trigger on the M5 candle that closes the M15 BOS; it must wait for a later M5 candle.
 - Secondary pending setups expire and invalidate on structural failure or H1/M15 context flip.
 - Same-direction signals resolve by priority; any opposing qualified direction blocks all signals.
-- Primary sweep/CHoCH/FVG signal outranks every secondary signal.\n\n## Required scenarios
+- Primary sweep/CHoCH/FVG signal outranks every secondary signal.
+
+## Required scenarios
 - Wick crosses swing but candle does not close beyond: no BOS.
 - Pivot has fewer than 3 right-side closed bars: not confirmed.
 - Missing/stale calendar: no new entries.
