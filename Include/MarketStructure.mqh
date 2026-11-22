@@ -202,20 +202,23 @@ bool PA_UpdateStructureState(const MqlRates &rates[],
    const bool has_low = PA_FindLatestConfirmedSwing(
       rates, count, lookback, false, new_low, new_low_time);
 
-   if(!has_high || !has_low)
-      return false;
-
-   // Update remembered pivots only when a genuinely newer pivot confirms.
-   if(new_high_time > state.latest_swing_high_time)
+   // A new pivot need not confirm on every candle. Retain the last
+   // known confirmed swing and continue processing the closed candle.
+   if(has_high && new_high_time > state.latest_swing_high_time)
      {
       state.latest_swing_high = new_high;
       state.latest_swing_high_time = new_high_time;
      }
-   if(new_low_time > state.latest_swing_low_time)
+   if(has_low && new_low_time > state.latest_swing_low_time)
      {
       state.latest_swing_low = new_low;
       state.latest_swing_low_time = new_low_time;
      }
+
+   // Without both swing anchors the structure direction cannot be trusted.
+   if(state.latest_swing_high_time <= 0 ||
+      state.latest_swing_low_time <= 0)
+      return false;
 
    snapshot.has_swing_high = true;
    snapshot.has_swing_low = true;
