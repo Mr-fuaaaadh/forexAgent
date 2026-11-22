@@ -263,7 +263,8 @@ bool PA_GetManagedPositionRisk(double &risk_cash,int &position_count,
          missing_protection=true;
          continue;
         }
-      risk_cash+=MathMax(0.0,MathAbs(pnl_at_sl));
+      // A stop beyond breakeven locks profit and contributes zero open risk.
+      risk_cash+=MathMax(0.0,-pnl_at_sl);
      }
    return true;
   }
@@ -281,9 +282,14 @@ bool PA_ReserveSetup(const string setup_id)
    if(setup_id=="")
       return false;
    const string key=PA_ExecutionPrefix()+".s."+StringFormat("%I64d",(long)PA_ExecutionHash(setup_id));
-   if(GlobalVariableCheck(key))
-      return false;
-   if(GlobalVariableSet(key,(double)TimeTradeServer())==0)
+   if(!GlobalVariableCheck(key))
+     {
+      if(GlobalVariableSet(key,0.0)==0)
+         return false;
+      GlobalVariablesFlush();
+     }
+   // Atomic compare-and-set prevents two EA instances reserving the same setup.
+   if(!GlobalVariableSetOnCondition(key,(double)TimeTradeServer(),0.0))
       return false;
    GlobalVariablesFlush();
    return true;
