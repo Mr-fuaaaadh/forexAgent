@@ -21,7 +21,11 @@
 - [x] H1/M15 directional arbitration with conflict rejection and neutral-H1 reversal sequence.
 - [x] Terminal persistence for timeframe structure state.
 - [ ] Validate persistence/replay and arbitration fixtures in MT5.
-- [x] M5 sweep → later CHoCH → FVG → retest signal state machine (primary strategy only).\n- [x] M5 setup persistence and setup-ID duplicate marker.\n- [x] Add bullish and bearish M5 sequence fixtures.\n- [ ] Add more edge-case fixtures and run all fixtures in MT5.\n- [ ] Setup IDs and duplicate prevention for all four strategy modules.
+- [x] M5 sweep → later CHoCH → FVG → retest signal state machine (primary strategy only).
+- [x] M5 setup persistence and setup-ID duplicate marker.
+- [x] Add bullish and bearish M5 sequence fixtures.
+- [ ] Add more edge-case fixtures and run all fixtures in MT5.
+- [ ] Setup IDs and duplicate prevention for all four strategy modules.
 - [ ] Deterministic tests/fixtures.
 
 ## Phase 3 — execution and risk
