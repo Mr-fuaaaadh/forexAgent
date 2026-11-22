@@ -112,6 +112,13 @@ void OnStart()
    Check("same M15 BOS event is not captured twice",
          captured.last_seen_m15_event_time==m15_state.last_structure_event_time);
 
+   const bool same_m15_close_blocked=PA_EvaluateBOSOrderBlockRetest(
+      _Symbol,rates,ArraySize(rates),0.05,snapshot,
+      captured.order_block,signal);
+   Check("OB retest cannot trigger on the M15 BOS closing candle",
+         !same_m15_close_blocked &&
+         signal.rejection_reason=="WAITING_FOR_POST_BOS_M5_CANDLE");
+
    // BOS -> order-block retest.
    PA_SecondarySetup ob;
    PA_ResetSecondarySetup(ob);
@@ -140,10 +147,10 @@ void OnStart()
    breakout.direction=1;
    breakout.source_event_time=now-1800;
    breakout.reference_level=20.0;
-   rates[1].open=20.5;
+   rates[1].open=21.5;
    rates[1].low=19.8;
    rates[1].high=22.5;
-   rates[1].close=21.8;
+   rates[1].close=22.0;
    const bool breakout_ok=PA_EvaluateBreakoutRetest(_Symbol,rates,
       ArraySize(rates),0.05,snapshot,breakout,signal);
    Check("breakout retest emits bullish signal",
