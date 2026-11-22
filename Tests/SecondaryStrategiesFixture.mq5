@@ -46,6 +46,7 @@ void OnStart()
   {
    MqlRates rates[];
    PA_StructureSnapshot snapshot;
+   PA_StrategySignal signal;
    PA_ResetStructureSnapshot(snapshot);
    snapshot.break_type=PA_BREAK_CHOCH_BULLISH;
    snapshot.resulting_direction=1;
@@ -132,7 +133,6 @@ void OnStart()
    rates[1].low=18.0;
    rates[1].high=23.0;
    rates[1].close=22.0;
-   PA_StrategySignal signal;
    const bool ob_ok=PA_EvaluateBOSOrderBlockRetest(_Symbol,rates,
       ArraySize(rates),0.05,snapshot,ob,signal);
    Check("BOS order-block retest emits bullish signal",
