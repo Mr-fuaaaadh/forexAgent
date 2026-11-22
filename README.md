@@ -34,6 +34,7 @@ Signals use closed candles only. H1/M15/M5 alignment, setup identity, and duplic
 
 Read [AGENTS.md](AGENTS.md) before making code changes.
 
+- [Multi-timeframe context engine](Documentation/MULTI_TIMEFRAME_CONTEXT.md)
 - [Market structure engine](Documentation/MARKET_STRUCTURE_ENGINE.md)\n- [Synthetic MT5 fixture](Tests/MarketStructureFixture.mq5)\n- [Architecture](Documentation/ARCHITECTURE.md)
 - [Strategy rules](Documentation/STRATEGY_RULES.md)
 - [Risk management](Documentation/RISK_MANAGEMENT.md)
