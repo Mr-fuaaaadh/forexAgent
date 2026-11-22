@@ -2,7 +2,9 @@
 
 All notable project changes are recorded here.
 
-## Unreleased\n- Added pending-setup invalidation when H1/M15 context flips, price closes through the sweep extreme, or the FVG is invalidated.\n- Added a synthetic fixture for opposite higher-timeframe direction invalidation.
+## Unreleased
+- Added pending-setup invalidation when H1/M15 context flips, price closes through the sweep extreme, or the FVG is invalidated.
+- Added a synthetic fixture for opposite higher-timeframe direction invalidation.
 - Added M5 primary entry signal state machine: sweep, later CHoCH, directional FVG, then FVG retest confirmation.
 - Added persistent M5 setup state and restart-safe emitted setup ID hash marker.
 - Added M5 runtime wrapper and synthetic bullish and bearish sequence fixtures; MT5 execution remains pending.
