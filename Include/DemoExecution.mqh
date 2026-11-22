@@ -116,8 +116,16 @@ bool PA_InitDemoExecution(const string symbol,const long magic,const bool enable
      }
    else
      {
-      // A new server day starts from current equity. If persistence fails,
-      // do not allow execution.
+      // The true daily baseline can only be captured at the start of the
+      // broker-server day. If the EA was not running then and no baseline
+      // was persisted, fail closed rather than substituting mid-session equity.
+      MqlDateTime server_now;
+      TimeToStruct(TimeTradeServer(),server_now);
+      if(server_now.hour!=0 || server_now.min>1)
+        {
+         Print("INIT BLOCKED: today's start-of-server-day equity baseline is missing. Attach at server midnight or wait for the next server day.");
+         return false;
+        }
       g_pa_server_day_key=today;
       g_pa_day_start_equity=AccountInfoDouble(ACCOUNT_EQUITY);
       if(g_pa_day_start_equity<=0.0 ||
@@ -305,6 +313,13 @@ bool PA_DailyLossTriggered()
       // Never silently reset the baseline during an active session.
       const string day_key=PA_ExecutionPrefix()+".day";
       const string equity_key=PA_ExecutionPrefix()+".equity";
+      MqlDateTime server_now;
+      TimeToStruct(TimeTradeServer(),server_now);
+      if(server_now.hour!=0 || server_now.min>1)
+        {
+         Print("DAILY GUARD LOCKED: start-of-day equity baseline was not captured at server midnight.");
+         return true;
+        }
       const double equity=AccountInfoDouble(ACCOUNT_EQUITY);
       if(equity<=0.0 || GlobalVariableSet(day_key,(double)today)==0 ||
          GlobalVariableSet(equity_key,equity)==0)
