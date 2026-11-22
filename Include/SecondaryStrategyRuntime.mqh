@@ -45,6 +45,13 @@ bool PA_RunSecondaryStrategies(const string symbol,
       return false;
      }
 
+   // Restore persisted state on first invocation after EA/terminal restart.
+   if(state.last_processed_m5_bar_time<=0)
+     {
+      if(!PA_LoadSecondaryStrategyState(symbol,magic_number,state))
+         PA_ResetSecondaryStrategyState(state);
+     }
+
    if(state.last_processed_m5_bar_time>0 &&
       m5_rates[1].time<=state.last_processed_m5_bar_time)
      {
@@ -62,7 +69,11 @@ bool PA_RunSecondaryStrategies(const string symbol,
       PA_ResetSecondarySetup(state.breakout);
       PA_ResetSecondarySetup(state.continuation);
       selected.rejection_reason="H1_M15_CONTEXT_NOT_ALIGNED";
-      PA_SaveSecondaryStrategyState(symbol,magic_number,state);
+      if(!PA_SaveSecondaryStrategyState(symbol,magic_number,state))
+        {
+         selected.rejection_reason="SECONDARY_PERSISTENCE_FAILED_FAIL_CLOSED";
+         return false;
+        }
       return false;
      }
 
