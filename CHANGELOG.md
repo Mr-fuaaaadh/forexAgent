@@ -3,6 +3,10 @@
 All notable project changes are recorded here.
 
 ## Unreleased
+- Added BOS/order-block retest, breakout/retest, and trend-continuation/pullback signal modules.
+- Added unified strategy priority arbitration: sweep/FVG > BOS/OB > breakout/retest > trend pullback; opposing qualified directions fail closed.
+- Added M15 BOS event capture, post-BOS M5 confirmation timing, setup expiry/invalidation, and restart persistence for secondary strategies.
+- Added synthetic fixtures for BOS capture, all three secondary modules, priority/conflict handling, and persistence; MT5 execution remains pending.
 - Added pending-setup invalidation when H1/M15 context flips, price closes through the sweep extreme, or the FVG is invalidated.
 - Added a synthetic fixture for opposite higher-timeframe direction invalidation.
 - Added M5 primary entry signal state machine: sweep, later CHoCH, directional FVG, then FVG retest confirmation.
