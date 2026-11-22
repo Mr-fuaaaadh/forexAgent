@@ -139,6 +139,16 @@ bool PA_InitDemoExecution(const string symbol,const long magic,const bool enable
    return true;
   }
 
+ENUM_ORDER_TYPE_FILLING PA_GetSymbolFillingMode(const string symbol)
+  {
+   const long modes=SymbolInfoInteger(symbol,SYMBOL_FILLING_MODE);
+   if((modes & SYMBOL_FILLING_FOK)==SYMBOL_FILLING_FOK)
+      return ORDER_FILLING_FOK;
+   if((modes & SYMBOL_FILLING_IOC)==SYMBOL_FILLING_IOC)
+      return ORDER_FILLING_IOC;
+   return ORDER_FILLING_RETURN;
+  }
+
 bool PA_CalculateStops(const int direction,const double entry,const double invalidation,
                        const double rr,double &sl,double &tp)
   {
@@ -411,7 +421,7 @@ bool PA_ExecuteSelectedDemoSignal(const PA_StrategySignal &signal)
    request.sl=sl;
    request.tp=tp;
    request.deviation=30;
-   request.type_filling=(ENUM_ORDER_TYPE_FILLING)SymbolInfoInteger(g_pa_exec_symbol,SYMBOL_FILLING_MODE);
+   request.type_filling=PA_GetSymbolFillingMode(g_pa_exec_symbol);
    request.comment="PADEMO:"+StringFormat("%I64d",(long)PA_ExecutionHash(signal.setup_id));
    if(!OrderCheck(request,check) ||
       (check.retcode!=TRADE_RETCODE_DONE && check.retcode!=TRADE_RETCODE_PLACED))
