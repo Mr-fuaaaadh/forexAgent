@@ -65,10 +65,15 @@ bool PA_SaveM5SetupState(const string symbol,const long magic_number,
 
    // Store the last setup ID as two numeric hashes to avoid string globals.
    uint id_hash=2166136261;
-   for(int i=0;i<StringLen(state.last_emitted_setup_id);i++)
+   if(StringFind(state.last_emitted_setup_id,"HASH:")==0)
+      id_hash=(uint)StringToInteger(StringSubstr(state.last_emitted_setup_id,5));
+   else
      {
-      id_hash^=(uint)StringGetCharacter(state.last_emitted_setup_id,i);
-      id_hash=(uint)(id_hash*16777619);
+      for(int i=0;i<StringLen(state.last_emitted_setup_id);i++)
+        {
+         id_hash^=(uint)StringGetCharacter(state.last_emitted_setup_id,i);
+         id_hash=(uint)(id_hash*16777619);
+        }
      }
    ok=PA_M5Write(hash,"idh",(double)id_hash) && ok;
    GlobalVariablesFlush();
