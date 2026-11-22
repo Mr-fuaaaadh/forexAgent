@@ -46,9 +46,10 @@ bool PA_AdvanceTimeframeState(const MqlRates &rates[],
    for(int shift = count - 8; shift >= 1; shift--)
      {
       if(after_time <= 0 || rates[shift].time > after_time)
+        {
          oldest_unprocessed_shift = shift;
-      else
          break;
+        }
      }
 
    if(oldest_unprocessed_shift == 0)
