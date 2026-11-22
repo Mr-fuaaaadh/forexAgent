@@ -12,7 +12,7 @@
 - [ ] Structured logging and persistent state.
 
 ## Phase 2 — deterministic price-action engine
-- [ ] Confirmed swings, BOS, CHoCH, sweep, and FVG.
+- [x] Initial closed-bar primitives: confirmed swings, BOS/CHoCH candidates, sweep, and FVG.\n- [ ] Protected-swing state machine and complete strategy-level CHoCH validation.\n- [ ] Deterministic MT5 fixture harness and MetaEditor validation.
 - [ ] H1/M15 directional arbitration.
 - [ ] Setup IDs and duplicate prevention.
 - [ ] Deterministic tests/fixtures.
