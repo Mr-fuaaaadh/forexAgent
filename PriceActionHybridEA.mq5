@@ -10,11 +10,16 @@
 #include "Include/M5EntrySignal.mqh"
 #include "Include/M5SetupPersistence.mqh"
 #include "Include/SecondaryStrategyRuntime.mqh"
+#include "Include/DemoExecution.mqh"
 
 input bool   InpEnableTrading    = false;
 input bool   InpAllowLiveTrading = false;
 input long   InpMagicNumber      = 120026;
 input double InpRiskPercent      = 0.5;
+input int    InpMaximumPositions = 3;
+input double InpMaximumOpenRisk  = 1.5;
+input double InpDailyLossLimit   = 2.0;
+input double InpRiskRewardRatio  = 2.0;
 input int    InpHistoryBars      = 500;
 input int    InpSwingLookback    = 80;
 input int    InpMaximumSetupBars = 12;
@@ -182,7 +187,10 @@ void PA_ProcessNewM5Bar()
    if(has_signal)
      {
       const int digits = (int)SymbolInfoInteger(g_symbol,SYMBOL_DIGITS);
-      PrintFormat("SIGNAL ONLY | %s | strategy=%s | symbol=%s | bar=%s | setup=%s | zone=[%.*f,%.*f] | invalidation=%.*f | context=%s | NO ORDER SENT",
+      if(g_pa_demo_execution_ready)
+         PA_ExecuteSelectedDemoSignal(selected);
+      else
+         PrintFormat("SIGNAL ONLY | %s | strategy=%s | symbol=%s | bar=%s | setup=%s | zone=[%.*f,%.*f] | invalidation=%.*f | context=%s | NO ORDER SENT",
          selected.direction > 0 ? "BUY" : "SELL",
          PA_StrategyName(selected.strategy),
          g_symbol,
@@ -214,17 +222,20 @@ void PA_ProcessNewM5Bar()
 int OnInit()
   {
    if(InpMagicNumber <= 0 || InpRiskPercent <= 0.0 ||
-      InpRiskPercent > 0.5 || InpHistoryBars < 100 ||
+      InpRiskPercent > 0.5 || InpMaximumPositions != 3 ||
+      InpMaximumOpenRisk != 1.5 || InpDailyLossLimit != 2.0 ||
+      InpRiskRewardRatio != 2.0 || InpHistoryBars < 100 ||
       InpSwingLookback < 4 || InpMaximumSetupBars < 3)
      {
       Print("INIT FAILED: invalid input parameters.");
       return INIT_PARAMETERS_INCORRECT;
      }
 
-   // This release is deliberately signal-only. Refuse unsafe input toggles.
-   if(InpEnableTrading || InpAllowLiveTrading)
+   // Live execution is permanently forbidden. Enabling execution only
+   // activates the separately hard-locked DEMO/hedging implementation.
+   if(InpAllowLiveTrading)
      {
-      Print("INIT FAILED: this build is signal-only; both trading inputs must remain false.");
+      Print("INIT FAILED: live trading is permanently disabled in this build.");
       return INIT_PARAMETERS_INCORRECT;
      }
 
@@ -235,6 +246,15 @@ int OnInit()
    if(!SymbolSelect(g_symbol,true))
      {
       PrintFormat("INIT FAILED: could not select symbol %s.",g_symbol);
+      return INIT_FAILED;
+     }
+
+   if(!PA_InitDemoExecution(g_symbol,InpMagicNumber,InpEnableTrading,
+                            InpAllowLiveTrading,InpRiskPercent,
+                            InpMaximumPositions,InpMaximumOpenRisk,
+                            InpDailyLossLimit,InpRiskRewardRatio))
+     {
+      Print("INIT FAILED: demo execution safety initialization failed.");
       return INIT_FAILED;
      }
 
@@ -257,9 +277,9 @@ int OnInit()
      }
 
    g_runtime_ready = true;
-   PrintFormat("SIGNAL-ONLY EA READY | symbol=%s | H1=%d | M15=%d | context=%s | trading=false | live=false",
+   PrintFormat("PRICE ACTION EA READY | symbol=%s | H1=%d | M15=%d | context=%s | execution=%s | live=false",
       g_symbol,g_h1_structure.direction,g_m15_structure.direction,
-      EnumToString(initial_context.context));
+      EnumToString(initial_context.context),g_pa_demo_execution_ready ? "DEMO" : "SIGNAL_ONLY");
    return INIT_SUCCEEDED;
   }
 
@@ -281,6 +301,10 @@ void OnTick()
   {
    if(!g_runtime_ready)
       return;
+
+   // Manage demo positions and enforce daily loss / protective-SL guards
+   // on every tick, not only when a new M5 candle opens.
+   PA_EnforceDemoRiskGuards();
 
    const datetime current_m5_open = iTime(g_symbol,PERIOD_M5,0);
    if(current_m5_open <= 0 || current_m5_open == g_last_m5_open_time)
