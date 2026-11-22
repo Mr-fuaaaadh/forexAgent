@@ -177,6 +177,16 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
      }
    setup.last_processed_bar_time = bar_time;
 
+   // Advance M5 structure on every closed candle, even when H1/M15
+   // context is unavailable. This prevents missed structure events during
+   // a higher-timeframe conflict or news/session block.
+   PA_StructureSnapshot structure_snapshot;
+   if(!PA_UpdateStructureState(rates,count,40,m5_structure,structure_snapshot))
+     {
+      signal.rejection_reason = "M5_STRUCTURE_NOT_READY";
+      return true;
+     }
+
    const bool bullish_context =
       (context.context == PA_CONTEXT_BULLISH_ALIGNED ||
        context.context == PA_CONTEXT_NEUTRAL_REVERSAL_BULLISH);
@@ -190,13 +200,6 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
          PA_RejectM5Setup(setup,"H1_M15_CONTEXT_NOT_ALIGNED",signal);
       else
          signal.rejection_reason = "H1_M15_CONTEXT_NOT_ALIGNED";
-      return true;
-     }
-
-   PA_StructureSnapshot structure_snapshot;
-   if(!PA_UpdateStructureState(rates,count,40,m5_structure,structure_snapshot))
-     {
-      signal.rejection_reason = "M5_STRUCTURE_NOT_READY";
       return true;
      }
 
@@ -358,6 +361,7 @@ bool PA_EvaluateM5EntrySignal(const string symbol,
       signal.rejection_reason = "SIGNAL_READY_NO_ORDER_SENT";
       setup.last_emitted_setup_id = setup_id;
       PA_RejectM5Setup(setup,"SIGNAL_EMITTED",signal);
+      signal.rejection_reason="SIGNAL_READY_NO_ORDER_SENT";
       return true;
      }
 
