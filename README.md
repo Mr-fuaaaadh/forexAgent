@@ -3,7 +3,7 @@
 **Project:** Price Action Hybrid EA v1.2  
 **Platform:** MetaTrader 5 (MQL5)  
 **Initial instrument:** XAUUSD and broker-validated XAUUSD/GOLD symbol variants  
-**Development status:** Specification and documentation scaffold — not production-ready.
+**Development status:** Signal-engine prototype — not production-ready; MT5 compile and Strategy Tester validation pending.
 
 > **Risk warning:** Automated trading can lose money rapidly. This repository is an engineering project, not financial advice or a promise of profitability. Run in Strategy Tester and on a demo account before considering live use. Live trading must remain explicitly disabled by default.
 
@@ -35,6 +35,7 @@ Signals use closed candles only. H1/M15/M5 alignment, setup identity, and duplic
 Read [AGENTS.md](AGENTS.md) before making code changes.
 
 - [Secondary strategy modules](Documentation/SECONDARY_STRATEGIES.md)
+- [Secondary strategy fixture](Tests/SecondaryStrategiesFixture.mq5)
 - [M5 entry signal engine](Documentation/M5_ENTRY_SIGNAL_ENGINE.md)
 - [Multi-timeframe context engine](Documentation/MULTI_TIMEFRAME_CONTEXT.md)
 - [Market structure engine](Documentation/MARKET_STRUCTURE_ENGINE.md)
