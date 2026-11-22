@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //| MarketStructure.mqh                                              |
-//| Deterministic closed-bar price-action primitives.                |
+//| Closed-bar price-action primitives and protected-swing state.   |
 //| No trading or order-execution functions are defined here.         |
 //+------------------------------------------------------------------+
 #ifndef FOREX_AGENT_MARKET_STRUCTURE_MQH
@@ -24,8 +24,25 @@ struct PA_StructureSnapshot
    datetime     swing_high_time;
    datetime     swing_low_time;
    PA_BreakType break_type;
-   int          resulting_direction; // +1 bullish, -1 bearish, 0 unchanged/unknown
+   int          resulting_direction; // +1 bullish, -1 bearish, 0 neutral
    datetime     signal_bar_time;
+   double       protected_high;
+   double       protected_low;
+  };
+
+struct PA_StructureState
+  {
+   int      direction; // +1 bullish, -1 bearish, 0 not established
+   double   latest_swing_high;
+   double   latest_swing_low;
+   datetime latest_swing_high_time;
+   datetime latest_swing_low_time;
+   double   protected_high;
+   double   protected_low;
+   datetime protected_high_time;
+   datetime protected_low_time;
+   datetime last_processed_bar_time;
+   datetime last_structure_event_time;
   };
 
 struct PA_Gap
@@ -38,11 +55,41 @@ struct PA_Gap
    datetime confirmation_time;
   };
 
-// Rates must be copied with ArraySetAsSeries(rates, true).
-// Index 0 is the forming candle; all signal functions use closed bars only.
+// Contract: rates is a series array; index 0 is forming, index 1 is
+// the latest completed candle. Never pass a non-series array.
 
-// A pivot at shift S is confirmed only after three newer closed candles
-// (S-1, S-2, S-3) and three older candles (S+1, S+2, S+3) are available.
+void PA_ResetStructureState(PA_StructureState &state)
+  {
+   state.direction = 0;
+   state.latest_swing_high = 0.0;
+   state.latest_swing_low = 0.0;
+   state.latest_swing_high_time = 0;
+   state.latest_swing_low_time = 0;
+   state.protected_high = 0.0;
+   state.protected_low = 0.0;
+   state.protected_high_time = 0;
+   state.protected_low_time = 0;
+   state.last_processed_bar_time = 0;
+   state.last_structure_event_time = 0;
+  }
+
+void PA_ResetStructureSnapshot(PA_StructureSnapshot &snapshot)
+  {
+   snapshot.has_swing_high = false;
+   snapshot.has_swing_low = false;
+   snapshot.swing_high = 0.0;
+   snapshot.swing_low = 0.0;
+   snapshot.swing_high_time = 0;
+   snapshot.swing_low_time = 0;
+   snapshot.break_type = PA_BREAK_NONE;
+   snapshot.resulting_direction = 0;
+   snapshot.signal_bar_time = 0;
+   snapshot.protected_high = 0.0;
+   snapshot.protected_low = 0.0;
+  }
+
+// Strict 3-left/3-right pivot. A pivot at shift S becomes available only
+// after three newer candles have closed: S must therefore be >= 4.
 bool PA_IsConfirmedSwingHigh(const MqlRates &rates[],
                              const int count,
                              const int shift)
@@ -53,9 +100,8 @@ bool PA_IsConfirmedSwingHigh(const MqlRates &rates[],
    const double candidate = rates[shift].high;
    for(int offset = 1; offset <= 3; offset++)
      {
-      if(candidate <= rates[shift - offset].high)
-         return false;
-      if(candidate <= rates[shift + offset].high)
+      if(candidate <= rates[shift - offset].high ||
+         candidate <= rates[shift + offset].high)
          return false;
      }
    return true;
@@ -71,16 +117,15 @@ bool PA_IsConfirmedSwingLow(const MqlRates &rates[],
    const double candidate = rates[shift].low;
    for(int offset = 1; offset <= 3; offset++)
      {
-      if(candidate >= rates[shift - offset].low)
-         return false;
-      if(candidate >= rates[shift + offset].low)
+      if(candidate >= rates[shift - offset].low ||
+         candidate >= rates[shift + offset].low)
          return false;
      }
    return true;
   }
 
-// Finds the most recent confirmed pivot in the requested closed-bar window.
-// lookback is the maximum pivot shift to inspect, not a bar count from now.
+// lookback is the maximum pivot shift to inspect. Since the array is a
+// series, scanning from shift 4 upward returns the most recently confirmed.
 bool PA_FindLatestConfirmedSwing(const MqlRates &rates[],
                                  const int count,
                                  const int lookback,
@@ -93,7 +138,7 @@ bool PA_FindLatestConfirmedSwing(const MqlRates &rates[],
    if(count < 8 || lookback < 4)
       return false;
 
-   const int last_shift = MathMin(lookback, count - 4);
+   const int last_shift = (int)MathMin(lookback, count - 4);
    for(int shift = 4; shift <= last_shift; shift++)
      {
       const bool found = find_high
@@ -109,62 +154,139 @@ bool PA_FindLatestConfirmedSwing(const MqlRates &rates[],
    return false;
   }
 
-// prior_direction is the caller's previously established structure direction.
-// +1 = bullish, -1 = bearish, 0 = unknown/neutral.
-// This primitive classifies a close through the latest confirmed pivot.
-// A strategy layer must decide whether that pivot is the protected swing
-// for the active structure before treating the result as a full CHoCH.
-bool PA_EvaluateStructure(const MqlRates &rates[],
-                          const int count,
-                          const int lookback,
-                          const int prior_direction,
-                          PA_StructureSnapshot &snapshot)
+// Stateful structure update. Call once per newly closed candle with a
+// series array. It ignores duplicate/replayed bars using bar timestamps.
+//
+// Neutral state: a close through the latest confirmed swing establishes
+// the initial direction (BOS).
+// Bull state: close below protected_low is bearish CHoCH; close above the
+// latest confirmed swing high is bullish BOS and refreshes protected_low.
+// Bear state: symmetric behavior using protected_high/latest swing low.
+//
+// The caller must persist PA_StructureState across terminal restarts.
+// This is a deterministic primitive; higher-level strategy logic must
+// still validate H1/M15 alignment and setup-specific conditions.
+bool PA_UpdateStructureState(const MqlRates &rates[],
+                             const int count,
+                             const int lookback,
+                             PA_StructureState &state,
+                             PA_StructureSnapshot &snapshot)
   {
-   snapshot.has_swing_high = false;
-   snapshot.has_swing_low = false;
-   snapshot.swing_high = 0.0;
-   snapshot.swing_low = 0.0;
-   snapshot.swing_high_time = 0;
-   snapshot.swing_low_time = 0;
-   snapshot.break_type = PA_BREAK_NONE;
-   snapshot.resulting_direction = prior_direction;
-   snapshot.signal_bar_time = 0;
+   PA_ResetStructureSnapshot(snapshot);
 
-   if(count < 9 || lookback < 4)
+   if(count < 9 || lookback < 4 || rates[1].time <= 0)
       return false;
 
-   snapshot.signal_bar_time = rates[1].time;
-   snapshot.has_swing_high = PA_FindLatestConfirmedSwing(
-      rates, count, lookback, true,
-      snapshot.swing_high, snapshot.swing_high_time);
-   snapshot.has_swing_low = PA_FindLatestConfirmedSwing(
-      rates, count, lookback, false,
-      snapshot.swing_low, snapshot.swing_low_time);
-
-   if(!snapshot.has_swing_high || !snapshot.has_swing_low)
+   const datetime signal_time = rates[1].time;
+   if(state.last_processed_bar_time > 0 &&
+      signal_time <= state.last_processed_bar_time)
       return false;
 
-   const double closed_price = rates[1].close;
-   if(closed_price > snapshot.swing_high)
+   double new_high = 0.0;
+   double new_low = 0.0;
+   datetime new_high_time = 0;
+   datetime new_low_time = 0;
+
+   const bool has_high = PA_FindLatestConfirmedSwing(
+      rates, count, lookback, true, new_high, new_high_time);
+   const bool has_low = PA_FindLatestConfirmedSwing(
+      rates, count, lookback, false, new_low, new_low_time);
+
+   if(!has_high || !has_low)
+      return false;
+
+   // Update remembered pivots only when a genuinely newer pivot confirms.
+   if(new_high_time > state.latest_swing_high_time)
      {
-      snapshot.break_type = (prior_direction < 0)
-                            ? PA_BREAK_CHOCH_BULLISH
-                            : PA_BREAK_BOS_BULLISH;
-      snapshot.resulting_direction = 1;
+      state.latest_swing_high = new_high;
+      state.latest_swing_high_time = new_high_time;
      }
-   else if(closed_price < snapshot.swing_low)
+   if(new_low_time > state.latest_swing_low_time)
      {
-      snapshot.break_type = (prior_direction > 0)
-                            ? PA_BREAK_CHOCH_BEARISH
-                            : PA_BREAK_BOS_BEARISH;
-      snapshot.resulting_direction = -1;
+      state.latest_swing_low = new_low;
+      state.latest_swing_low_time = new_low_time;
      }
 
+   snapshot.has_swing_high = true;
+   snapshot.has_swing_low = true;
+   snapshot.swing_high = state.latest_swing_high;
+   snapshot.swing_low = state.latest_swing_low;
+   snapshot.swing_high_time = state.latest_swing_high_time;
+   snapshot.swing_low_time = state.latest_swing_low_time;
+   snapshot.signal_bar_time = signal_time;
+
+   const double close_price = rates[1].close;
+
+   if(state.direction == 0)
+     {
+      if(close_price > state.latest_swing_high)
+        {
+         state.direction = 1;
+         state.protected_low = state.latest_swing_low;
+         state.protected_low_time = state.latest_swing_low_time;
+         state.last_structure_event_time = signal_time;
+         snapshot.break_type = PA_BREAK_BOS_BULLISH;
+        }
+      else if(close_price < state.latest_swing_low)
+        {
+         state.direction = -1;
+         state.protected_high = state.latest_swing_high;
+         state.protected_high_time = state.latest_swing_high_time;
+         state.last_structure_event_time = signal_time;
+         snapshot.break_type = PA_BREAK_BOS_BEARISH;
+        }
+     }
+   else if(state.direction > 0)
+     {
+      // A protected-low violation has priority over continuation.
+      if(state.protected_low > 0.0 &&
+         close_price < state.protected_low)
+        {
+         state.direction = -1;
+         state.protected_high = state.latest_swing_high;
+         state.protected_high_time = state.latest_swing_high_time;
+         state.last_structure_event_time = signal_time;
+         snapshot.break_type = PA_BREAK_CHOCH_BEARISH;
+        }
+      else if(close_price > state.latest_swing_high &&
+              state.latest_swing_high_time > state.last_structure_event_time)
+        {
+         state.protected_low = state.latest_swing_low;
+         state.protected_low_time = state.latest_swing_low_time;
+         state.last_structure_event_time = signal_time;
+         snapshot.break_type = PA_BREAK_BOS_BULLISH;
+        }
+     }
+   else if(state.direction < 0)
+     {
+      if(state.protected_high > 0.0 &&
+         close_price > state.protected_high)
+        {
+         state.direction = 1;
+         state.protected_low = state.latest_swing_low;
+         state.protected_low_time = state.latest_swing_low_time;
+         state.last_structure_event_time = signal_time;
+         snapshot.break_type = PA_BREAK_CHOCH_BULLISH;
+        }
+      else if(close_price < state.latest_swing_low &&
+              state.latest_swing_low_time > state.last_structure_event_time)
+        {
+         state.protected_high = state.latest_swing_high;
+         state.protected_high_time = state.latest_swing_high_time;
+         state.last_structure_event_time = signal_time;
+         snapshot.break_type = PA_BREAK_BOS_BEARISH;
+        }
+     }
+
+   state.last_processed_bar_time = signal_time;
+   snapshot.resulting_direction = state.direction;
+   snapshot.protected_high = state.protected_high;
+   snapshot.protected_low = state.protected_low;
    return true;
   }
 
-// Bullish sweep: closed candle's low pierces the confirmed swing low,
-// then closes back above it. Bearish sweep is the inverse.
+// Bullish sweep: closed candle pierces a confirmed swing low and closes
+// back above it. Bearish sweep is the inverse.
 bool PA_DetectLiquiditySweep(const MqlRates &rates[],
                              const int count,
                              const double swing_level,
