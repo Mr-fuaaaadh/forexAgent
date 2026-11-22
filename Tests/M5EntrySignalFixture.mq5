@@ -175,6 +175,70 @@ void OnStart()
          signal.signal==PA_ENTRY_NONE &&
          signal.rejection_reason=="H1_M15_CONTEXT_NOT_ALIGNED");
 
+   // Mirror the complete sequence for SELL.
+   PA_ResetM5SetupState(setup);
+   PA_ResetStructureState(structure);
+   context.context=PA_CONTEXT_BEARISH_ALIGNED;
+   context.h1_direction=-1;
+   context.m15_direction=-1;
+   const datetime sell_base=base+1800;
+   const datetime sell_pivot=sell_base-1500;
+   structure.direction=1;
+   structure.latest_swing_high=30.0;
+   structure.latest_swing_low=10.0;
+   structure.latest_swing_high_time=sell_pivot;
+   structure.latest_swing_low_time=sell_pivot;
+   structure.protected_low=10.0;
+   structure.protected_low_time=sell_pivot;
+   structure.last_structure_event_time=sell_pivot;
+   structure.last_processed_bar_time=sell_base-600;
+
+   BuildFixtureRates(rates,sell_base-300);
+   rates[1].open=28.0;
+   rates[1].high=31.0;
+   rates[1].low=20.0;
+   rates[1].close=29.0;
+   const bool sell_sweep_call=PA_EvaluateM5EntrySignal(_Symbol,rates,
+      ArraySize(rates),0.05,context,structure,setup,signal,12);
+   Check("bearish sweep captured and waits for later CHoCH",
+         sell_sweep_call && setup.stage==PA_SETUP_WAIT_CHOCH &&
+         setup.direction==-1 && signal.signal==PA_ENTRY_NONE);
+
+   BuildFixtureRates(rates,sell_base);
+   rates[1].open=10.0;
+   rates[1].high=11.0;
+   rates[1].low=8.0;
+   rates[1].close=9.0;
+   const bool sell_choch_call=PA_EvaluateM5EntrySignal(_Symbol,rates,
+      ArraySize(rates),0.05,context,structure,setup,signal,12);
+   Check("later bearish CHoCH advances SELL setup to FVG stage",
+         sell_choch_call && setup.stage==PA_SETUP_WAIT_FVG &&
+         setup.choch_time==rates[1].time);
+
+   BuildFixtureRates(rates,sell_base+300);
+   rates[3].low=20.0;
+   rates[1].open=18.8;
+   rates[1].high=19.0;
+   rates[1].low=17.0;
+   rates[1].close=18.5;
+   const bool sell_fvg_call=PA_EvaluateM5EntrySignal(_Symbol,rates,
+      ArraySize(rates),0.05,context,structure,setup,signal,12);
+   Check("completed bearish FVG advances SELL setup to retest stage",
+         sell_fvg_call && setup.stage==PA_SETUP_WAIT_RETEST &&
+         setup.fvg_lower==19.0 && setup.fvg_upper==20.0);
+
+   BuildFixtureRates(rates,sell_base+600);
+   rates[1].open=19.2;
+   rates[1].high=19.5;
+   rates[1].low=17.5;
+   rates[1].close=18.5;
+   const bool sell_retest_call=PA_EvaluateM5EntrySignal(_Symbol,rates,
+      ArraySize(rates),0.05,context,structure,setup,signal,12);
+   Check("bearish FVG retest emits SELL signal without placing an order",
+         sell_retest_call && signal.signal==PA_ENTRY_SELL &&
+         signal.direction==-1 && signal.setup_id!="" &&
+         signal.rejection_reason=="SIGNAL_READY_NO_ORDER_SENT");
+
    Print("M5 entry fixtures complete. Passed=",g_passed,
          " Failed=",g_failed);
   }
