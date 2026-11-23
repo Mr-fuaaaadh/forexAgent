@@ -383,7 +383,7 @@ bool PA_EvaluateModelB2(const string symbol,
                         PA_SecondarySetup &setup,PA_StrategySignal &signal)
   {
    PA_ResetStrategySignal(signal);
-   if(symbol=="" || m15_count<20 || m5_count<20 || d1_count<1 ||
+   if(symbol=="" || m15_count<20 || m5_count<20 || d1_count<0 ||
       spread_price<0.0 || (context_direction!=1 && context_direction!=-1) ||
       m5_rates[1].time<=0)
      { signal.rejection_reason="MODEL_B2_INVALID_INPUT"; return false; }
@@ -467,6 +467,11 @@ bool PA_EvaluateModelB2(const string symbol,
      {
       if(m5_rates[1].time<=setup.setup_created_time)
         { signal.rejection_reason="MODEL_B2_RECLAIM_CANDLE_CANNOT_BE_MSS"; return false; }
+      const bool opposite_mss=(setup.direction>0 &&
+         m5_snapshot.break_type==PA_BREAK_CHOCH_BEARISH) ||
+         (setup.direction<0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BULLISH);
+      if(opposite_mss)
+        { PA_ResetSecondarySetup(setup); signal.rejection_reason="MODEL_B2_OPPOSITE_MSS_INVALIDATED"; return false; }
       const bool mss=(setup.direction>0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BULLISH) ||
                      (setup.direction<0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BEARISH);
       if(!mss) { signal.rejection_reason="MODEL_B2_WAITING_FOR_DISTINCT_MSS"; return false; }
