@@ -198,7 +198,7 @@ void OnStart()
    rates[1].open=20.5; rates[1].low=19.9;
    rates[1].high=21.0; rates[1].close=20.8;
    const bool pullback_seen=PA_EvaluateTrendPullback(_Symbol,rates,
-      ArraySize(rates),0.05,snapshot,trend,signal);
+      ArraySize(rates),0.05,trend,signal);
    Check("Model A captures directional rejection inside pullback band",
          !pullback_seen && trend.stage==PA_SECONDARY_WAIT_CONTINUATION &&
          trend.pullback_extreme==19.9);
@@ -208,7 +208,7 @@ void OnStart()
    rates[1].open=20.8; rates[1].low=20.0;
    rates[1].high=21.4; rates[1].close=21.2;
    const bool continuation_ok=PA_EvaluateTrendPullback(_Symbol,rates,
-      ArraySize(rates),0.05,snapshot,trend,signal);
+      ArraySize(rates),0.05,trend,signal);
    Check("Model A emits only after later close breaks rejection high",
          continuation_ok && signal.strategy==PA_STRATEGY_TREND_PULLBACK &&
          signal.direction==1 && signal.setup_id!="" &&
@@ -227,7 +227,7 @@ void OnStart()
    rates[1].open=20.0; rates[1].low=19.9;
    rates[1].high=21.0; rates[1].close=20.1;
    const bool no_reject_signal=PA_EvaluateTrendPullback(_Symbol,rates,
-      ArraySize(rates),0.05,snapshot,no_rejection,signal);
+      ArraySize(rates),0.05,no_rejection,signal);
    Check("Model A rejects zone touch without directional rejection",
          !no_reject_signal && no_rejection.stage==PA_SECONDARY_WAIT_PULLBACK &&
          signal.rejection_reason=="PULLBACK_TOUCH_WITHOUT_DIRECTIONAL_REJECTION");
