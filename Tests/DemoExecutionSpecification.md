@@ -6,7 +6,7 @@ This document defines the acceptance contract for the demo-only execution layer.
 
 - DEMO account mode only; real and contest accounts are rejected.
 - Hedging margin mode required to support three independent XAUUSD positions.
-- Live execution is permanently disabled; setting the live input true must fail initialization.
+- Live execution is permanently disabled; there is no user-configurable live-trading input. The execution module accepts only DEMO accounts in HEDGING mode.
 - Default execution input remains disabled. The EA must be explicitly enabled by the operator on a demo account.
 - XAUUSD only, with XAU base and USD profit currency metadata.
 
@@ -32,7 +32,7 @@ This document defines the acceptance contract for the demo-only execution layer.
 
 - Baseline is account equity captured during the first minute (00:00-00:01) of each broker-server calendar day.
 - Baseline day and equity are persisted in terminal global variables.
-- If no baseline exists and the EA is initialized after 00:01 server time, initialization is blocked for that day rather than substituting mid-session equity.
+- If no baseline exists and the EA is initialized after 00:01 server time, the EA remains attached in signal-only/pending mode. It activates demo execution only after capturing and persisting the next broker-server day opening equity during 00:00-00:01. It never substitutes mid-session equity.
 - Current equity includes floating P/L; the 2% internal drawdown lock blocks entries and requests closure of managed positions, before the firm 4% daily limit is reached.
 - Missing or uncalculable protective SL requests closure of the affected managed position(s).
 - Persistence failure fails closed.
@@ -55,7 +55,7 @@ This document defines the acceptance contract for the demo-only execution layer.
 ## Known limitations requiring review
 
 - Setup reservation is intentionally conservative and may suppress a retry after a broker rejection; manual inspection is required before any operator clears a reservation.
-- The EA must be attached and running within the first minute of broker-server midnight to capture the daily baseline. If that window is missed, the execution layer fails closed until the next server day. Verify broker-server time before planning the forward test.
+- The EA can be attached at any time, but demo execution remains pending and sends no orders until a valid start-of-day equity baseline exists. If the current day's first minute was missed, it waits for the next broker-server day opening minute. A one-second timer attempts capture even when market ticks are quiet. Verify broker-server time before the forward test.
 - The minimum-day marker currently counts an EA-managed opening deal only; manual trades and other EAs are not reconciled. Confirm the firm counting convention before relying on this tracker.
 - The static-loss baseline must be entered manually as the exact challenge starting balance; do not infer it from mid-challenge equity.
 - The execution module requires hedging mode. Netting accounts are blocked.
