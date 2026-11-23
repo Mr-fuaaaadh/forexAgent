@@ -2,75 +2,73 @@
 
 **Project:** Price Action Hybrid EA v1.3  
 **Platform:** MetaTrader 5 (MQL5)  
-**Initial instrument:** XAUUSD and broker-validated XAUUSD/GOLD symbol variants  
-**Development status:** Signal-only primary strategy runtime; strict MetaEditor compile and chart initialization verified on 2026-11-22. Secondary strategy modules are implemented but not wired into the root EA. Not production-ready.
+**Instrument:** XAUUSD (broker suffixes are accepted only when symbol metadata reports base XAU and profit USD)  
+**Runtime:** Signal-only by default; optional execution is restricted in code to DEMO + HEDGING accounts  
+**Development status:** Strategy signal modules and root runtime arbitration are integrated. A demo-only order path and challenge risk guards are present. This is an experimental engineering build, not a validated trading system.
 
-> **Risk warning:** Automated trading can lose money rapidly. This repository is an engineering project, not financial advice or a promise of profitability. Run the full Strategy Tester suite and demo forward tests before considering live use. Live trading must remain explicitly disabled by default.
+> **Risk warning:** Automated trading can lose money rapidly. A compile, chart attachment, accepted demo order, or historical test does not establish profitability or production readiness. Keep execution disabled until the separate demo validation checklist is completed. Live-account execution is intentionally blocked by the execution module.
 
 ## Project goal
 
-Build a deterministic, testable MT5 Expert Advisor that combines multi-timeframe price action with strict execution and account-level risk controls. The EA will initially target XAUUSD and use H1 for directional bias, M15 for structure, and M5 for entries and position management.
+Build a deterministic, testable MT5 Expert Advisor using H1 context, M15 structure, and M5 entry decisions. The current source combines a primary liquidity-sweep strategy with three secondary signal modules and one arbitration point.
 
-## Safety defaults
+## Safety defaults and account restrictions
 
-- `EnableTrading=false`
-- `AllowLiveTrading=false`
-- This signal-only build refuses initialization if either trading toggle is enabled.
-- The current root EA does not submit, modify, or close orders.
-- Future position sizing must use broker/account-calculated monetary risk; never fixed-lot assumptions.
-- Every future position must have verified broker-side stop-loss protection.
-- Only positions owned by this EA's Magic Number may be managed.
-- Unavailable or stale required data must fail closed for new entries.
+- `InpEnableTrading=false` by default.
+- There is no user-configurable live-trading enable switch in this build.
+- The execution module accepts only a MetaTrader DEMO account in HEDGING mode and checks terminal/account/expert trading permissions.
+- If execution is disabled, the EA remains signal-only.
+- If execution is enabled but a valid broker-server day-start equity baseline is unavailable, the EA remains attached in signal-only/pending mode and sends no orders.
+- Risk sizing uses `OrderCalcProfit()`; volume is rounded down to broker volume steps.
+- Only positions matching this EA's symbol and Magic Number are counted/managed.
+- Do not treat the presence of execution code as permission to use a live account.
 
-## Strategy priority
+## Current strategy runtime
 
-1. Liquidity sweep + CHoCH + FVG
-2. BOS + order-block retest
-3. Breakout + retest
-4. Trend continuation + pullback
+1. Primary: liquidity sweep → later CHoCH → directional FVG → retest/confirmation.
+2. Secondary: BOS + order-block retest.
+3. Secondary: M15 BOS breakout + retest.
+4. Secondary: H1/M15 trend continuation + pullback.
 
-Signals use closed candles only. H1/M15/M5 alignment, setup identity, and duplicate-signal prevention are mandatory.
+The root EA evaluates the primary and secondary signal paths on the same newly closed M5 decision, then calls unified arbitration. Opposing qualified directions reject the decision. The selected signal is sent to the demo execution module only when its safety initialization is ready; otherwise it is logged as signal-only.
 
-## Current runtime boundary
+These are the current implemented mechanical modules, not a completed implementation of every research model A/B/C/D. See [Research-to-code gap audit](Documentation/RESEARCH_GAP_AUDIT.md).
 
-The root `PriceActionHybridEA.mq5` currently calls only the primary M5 sweep → CHoCH → FVG → retest signal engine. BOS/OB, breakout/retest, trend-pullback, secondary persistence, and arbitration modules exist in `Include/`, but are not yet connected to the root EA runtime. Do not treat those modules as active EA strategies until integration and fixture validation are complete.
+## Current execution controls
 
-## Validation evidence
+- Risk per trade: 0.5% of current equity.
+- Maximum EA-owned positions: 3 (hedging account required).
+- Maximum combined open risk: 1.5% of current equity.
+- Internal daily equity-loss lock: 2% from the captured broker-server day-start equity.
+- Additional challenge daily threshold: 4%; the 2% internal threshold is stricter and normally triggers first.
+- Static maximum loss: 12% below configured challenge initial balance.
+- Profit target: 10% above configured challenge initial balance, evaluated against balance; completion also checks the recorded minimum-trading-day marker.
+- Risk/reward: fixed 2R.
+- Challenge initial balance must be explicitly configured before execution can initialize.
 
-See [MT5 validation log](Documentation/VALIDATION_LOG.md). On 2026-11-22 the user reported:
-- MetaEditor strict compile: 0 errors, 0 warnings.
-- XAUUSD chart attachment: `SIGNAL-ONLY EA READY` observed on chart timeframes; H1 bearish and M15 bullish produced `PA_CONTEXT_NO_TRADE`, as expected for conflicting context.
-- Strategy Tester ran, but the requested 2024-01-01 to 2026-11-21 interval was not fully covered by available history. The log reported history beginning 2024-06-21, ending synchronization at 2026-07-27, and no real ticks (generated ticks used).
+Important gaps remain: no explicit maximum-spread filter, no research-specified ATR/spread stop buffer in the order path, no verified post-fill SL/TP reconciliation, and no complete broker-currency/contract compatibility matrix. Read [Risk management](Documentation/RISK_MANAGEMENT.md).
 
-These checks establish compilation and initialization only. They do not establish signal profitability, full historical coverage, fixture correctness, restart/replay correctness, or production readiness.
+## Validation status
+
+Compilation and chart initialization have been user-reported, but the current source revision must be recompiled and all fixtures must be run on the user's MT5 terminal after updating. The previously supplied Strategy Tester run had incomplete history and generated ticks; it is not a valid full-period real-tick backtest. See [Validation log](Documentation/VALIDATION_LOG.md).
 
 ## Documentation
 
-Read [AGENTS.md](AGENTS.md) before making code changes.
-
-- [Signal-only EA integration](Documentation/SIGNAL_ONLY_EA_INTEGRATION.md)
+- [Research-to-code gap audit](Documentation/RESEARCH_GAP_AUDIT.md)
+- [Root EA runtime integration](Documentation/SIGNAL_ONLY_EA_INTEGRATION.md)
 - [Secondary strategy modules](Documentation/SECONDARY_STRATEGIES.md)
-- [Secondary strategy fixture](Tests/SecondaryStrategiesFixture.mq5)
-- [M5 entry signal engine](Documentation/M5_ENTRY_SIGNAL_ENGINE.md)
-- [Multi-timeframe context engine](Documentation/MULTI_TIMEFRAME_CONTEXT.md)
-- [Market structure engine](Documentation/MARKET_STRUCTURE_ENGINE.md)
-- [Synthetic MT5 fixture](Tests/MarketStructureFixture.mq5)
-- [Architecture](Documentation/ARCHITECTURE.md)
 - [Strategy rules](Documentation/STRATEGY_RULES.md)
 - [Risk management](Documentation/RISK_MANAGEMENT.md)
-- [Broker compatibility](Documentation/BROKER_COMPATIBILITY.md)
-- [Installation](Documentation/INSTALLATION.md)
 - [Configuration](Documentation/CONFIGURATION.md)
 - [Testing and validation](Documentation/TESTING.md)
-- [Troubleshooting](Documentation/TROUBLESHOOTING.md)
 - [Development roadmap](Documentation/DEVELOPMENT_ROADMAP.md)
 - [Validation evidence](Documentation/VALIDATION_LOG.md)
+- [Agent workflow](AGENTS.md)
 - [Changelog](CHANGELOG.md)
-- [Contributing](CONTRIBUTING.md)
 
 ## Repository status
 
-The repository contains the engineering specification, price-action primitives, H1/M15 context, primary M5 sweep/CHoCH/FVG signal engine, secondary signal modules, arbitration, persistence, fixtures, and a signal-only EA runtime integration. The EA does **not** place trades and is not production-ready. Secondary strategy runtime integration, fixture execution, persistence/replay validation, complete historical testing, broker compatibility, risk controls, and demo forward validation remain outstanding.
+The repository includes closed-bar structure/context processing, primary and secondary strategy signal modules, persistence, unified arbitration, demo-only order submission, risk sizing, and account/challenge guards. It is **not yet validated for live or profitable use**. Demo execution should remain disabled until source compilation, fixture execution, risk/execution edge cases, adequate historical tests, and forward demo tests are recorded.
 
 ## License
 
