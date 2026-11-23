@@ -89,7 +89,9 @@ bool PA_RunSecondaryStrategies(const string symbol,
       state.breakout.direction!=context_direction)
       PA_ResetSecondarySetup(state.breakout);
    if(state.continuation.stage!=PA_SECONDARY_IDLE &&
-      state.continuation.direction!=context_direction)
+      (state.continuation.direction!=context_direction ||
+       !PA_HasConfirmedH1TrendStructure(h1_rates,h1_count,
+                                        context_direction,80)))
       PA_ResetSecondarySetup(state.continuation);
 
    // Capture an M15 BOS only when it is the currently completed M15 bar.
