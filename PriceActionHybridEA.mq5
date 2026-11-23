@@ -176,8 +176,8 @@ void PA_ProcessNewM5Bar()
       secondary_signal.rejection_reason = "H1_OR_M15_HISTORY_INSUFFICIENT_FOR_SECONDARY";
 
    // One arbitration point for every strategy on this closed M5 bar.
-   PA_StrategySignal secondary_candidates[1];
-   PA_ResetStrategySignal(secondary_candidates[0]);
+   PA_StrategySignal secondary_candidates[4];
+   for(int i=0;i<4;i++) PA_ResetStrategySignal(secondary_candidates[i]);
    int secondary_count = 0;
    if(secondary_evaluated)
      {
