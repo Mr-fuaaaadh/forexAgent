@@ -247,9 +247,51 @@ void OnStart()
          !no_reject_signal && no_rejection.stage==PA_SECONDARY_WAIT_PULLBACK &&
          signal.rejection_reason=="PULLBACK_TOUCH_WITHOUT_DIRECTIONAL_REJECTION");
 
+   // B2: sweep -> reclaim -> distinct MSS -> confirmation -> trigger.
+   MqlRates b2_m15[];
+   ArrayResize(b2_m15,50); ArraySetAsSeries(b2_m15,true);
+   for(int i=0;i<50;i++)
+     { b2_m15[i].time=now-(datetime)((i-1)*900); b2_m15[i].open=22.0;
+       b2_m15[i].high=25.0; b2_m15[i].low=20.0; b2_m15[i].close=22.0; }
+   b2_m15[22].low=19.0; b2_m15[14].low=18.0;
+   MqlRates b2_d1[]; ArrayResize(b2_d1,2); ArraySetAsSeries(b2_d1,true);
+   b2_d1[0].time=now; b2_d1[1].time=now-86400;
+   b2_d1[1].high=30.0; b2_d1[1].low=10.0;
+   PA_SecondarySetup b2; PA_ResetSecondarySetup(b2);
+   PA_StrategySignal b2_signal; MqlRates b2_m5[]; BuildM5(b2_m5,now);
+   b2_m5[1].low=17.0; b2_m5[1].close=17.5;
+   PA_StructureSnapshot b2_snapshot; PA_ResetStructureSnapshot(b2_snapshot);
+   bool b2_result=PA_EvaluateModelB2(_Symbol,b2_m15,ArraySize(b2_m15),
+      b2_d1,ArraySize(b2_d1),b2_m5,ArraySize(b2_m5),0.05,1,
+      b2_snapshot,b2,b2_signal);
+   Check("B2 captures a qualifying M15 swing sweep",!b2_result &&
+      b2.stage==PA_SECONDARY_WAIT_RECLAIM);
+   b2_m5[1].time+=300; b2_m5[1].low=18.5; b2_m5[1].close=20.5;
+   PA_EvaluateModelB2(_Symbol,b2_m15,ArraySize(b2_m15),b2_d1,
+      ArraySize(b2_d1),b2_m5,ArraySize(b2_m5),0.05,1,b2_snapshot,b2,b2_signal);
+   Check("B2 reclaim precedes MSS",b2.stage==PA_SECONDARY_WAIT_MSS);
+   b2_m5[1].time+=300; b2_m5[1].low=19.0; b2_m5[1].high=21.0;
+   b2_m5[1].open=19.5; b2_m5[1].close=20.5;
+   b2_snapshot.break_type=PA_BREAK_CHOCH_BULLISH; b2_snapshot.signal_bar_time=b2_m5[1].time;
+   PA_EvaluateModelB2(_Symbol,b2_m15,ArraySize(b2_m15),b2_d1,
+      ArraySize(b2_d1),b2_m5,ArraySize(b2_m5),0.05,1,b2_snapshot,b2,b2_signal);
+   Check("B2 requires distinct MSS",b2.stage==PA_SECONDARY_WAIT_CONFIRMATION);
+   b2_m5[1].time+=300; b2_m5[1].open=20.0; b2_m5[1].close=21.0;
+   b2_m5[1].high=21.5; b2_m5[1].low=19.8;
+   PA_ResetStructureSnapshot(b2_snapshot);
+   PA_EvaluateModelB2(_Symbol,b2_m15,ArraySize(b2_m15),b2_d1,
+      ArraySize(b2_d1),b2_m5,ArraySize(b2_m5),0.05,1,b2_snapshot,b2,b2_signal);
+   Check("B2 stores later directional confirmation",b2.stage==PA_SECONDARY_WAIT_TRIGGER);
+   b2_m5[1].time+=300; b2_m5[1].open=21.0; b2_m5[1].close=22.0;
+   b2_m5[1].high=22.2; b2_m5[1].low=20.8;
+   b2_result=PA_EvaluateModelB2(_Symbol,b2_m15,ArraySize(b2_m15),b2_d1,
+      ArraySize(b2_d1),b2_m5,ArraySize(b2_m5),0.05,1,b2_snapshot,b2,b2_signal);
+   Check("B2 emits after later trigger break",b2_result &&
+      b2_signal.strategy==PA_STRATEGY_SWEEP_RECLAIM_MSS);
+
    // Same-direction candidates resolve by priority: BOS/OB before breakout.
-   PA_StrategySignal candidates[3];
-   for(int i=0;i<3;i++)
+   PA_StrategySignal candidates[4];
+   for(int i=0;i<4;i++)
       PA_ResetStrategySignal(candidates[i]);
    candidates[0].strategy=PA_STRATEGY_BREAKOUT_RETEST;
    candidates[0].direction=1;
@@ -269,6 +311,13 @@ void OnStart()
    Check("conflicting qualified strategies reject all signals",
          !conflict_ok &&
          signal.rejection_reason=="CONFLICTING_QUALIFIED_STRATEGY_DIRECTIONS");
+
+   candidates[2].direction=1;
+   candidates[3].strategy=PA_STRATEGY_SWEEP_RECLAIM_MSS;
+   candidates[3].direction=1; candidates[3].setup_id="b2";
+   const bool b2_priority=PA_ArbitrateStrategySignals(candidates,4,signal);
+   Check("B2 has independent secondary arbitration identity",
+      b2_priority && signal.strategy==PA_STRATEGY_BOS_OB_RETEST);
 
    // Primary sweep strategy has priority over all secondary strategies.
    PA_M5Signal primary;
@@ -297,13 +346,19 @@ void OnStart()
    state.order_block.zone_low=19.0;
    state.order_block.zone_high=21.0;
    state.order_block.reference_level=21.0;
+   state.model_b2.stage=PA_SECONDARY_WAIT_MSS;
+   state.model_b2.direction=1; state.model_b2.source_event_time=now-600;
+   state.model_b2.setup_created_time=now-300;
+   state.model_b2.reference_level=19.0; state.model_b2.pullback_extreme=18.0;
    const long magic=99007861;
    const bool saved=PA_SaveSecondaryStrategyState(_Symbol,magic,state);
    const bool loaded=PA_LoadSecondaryStrategyState(_Symbol,magic,saved_state);
-   Check("secondary setup state survives persistence round-trip",
+   Check("secondary setup state including B2 survives persistence round-trip",
          saved && loaded &&
          saved_state.order_block.stage==PA_SECONDARY_WAIT_RETEST &&
          saved_state.order_block.direction==1 &&
+         saved_state.model_b2.stage==PA_SECONDARY_WAIT_MSS &&
+         saved_state.model_b2.reference_level==19.0 &&
          saved_state.last_processed_m5_bar_time==now);
 
    Print("Secondary strategy fixtures complete. Passed=",g_passed,
