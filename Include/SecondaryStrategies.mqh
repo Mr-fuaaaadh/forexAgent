@@ -14,7 +14,8 @@ enum PA_StrategyType
    PA_STRATEGY_SWEEP_CHOCH_FVG,
    PA_STRATEGY_BOS_OB_RETEST,
    PA_STRATEGY_BREAKOUT_RETEST,
-   PA_STRATEGY_TREND_PULLBACK
+   PA_STRATEGY_TREND_PULLBACK,
+   PA_STRATEGY_SWEEP_RECLAIM_MSS
   };
 
 enum PA_SecondaryStage
@@ -22,7 +23,11 @@ enum PA_SecondaryStage
    PA_SECONDARY_IDLE = 0,
    PA_SECONDARY_WAIT_RETEST,
    PA_SECONDARY_WAIT_PULLBACK,
-   PA_SECONDARY_WAIT_CONTINUATION
+   PA_SECONDARY_WAIT_CONTINUATION,
+   PA_SECONDARY_WAIT_RECLAIM,
+   PA_SECONDARY_WAIT_MSS,
+   PA_SECONDARY_WAIT_CONFIRMATION,
+   PA_SECONDARY_WAIT_TRIGGER
   };
 
 struct PA_SecondarySetup
@@ -46,6 +51,7 @@ struct PA_SecondaryStrategyState
    PA_SecondarySetup order_block;
    PA_SecondarySetup breakout;
    PA_SecondarySetup continuation;
+   PA_SecondarySetup model_b2;
    string         last_emitted_setup_id;
   };
 
@@ -84,6 +90,7 @@ void PA_ResetSecondaryStrategyState(PA_SecondaryStrategyState &state)
    PA_ResetSecondarySetup(state.order_block);
    PA_ResetSecondarySetup(state.breakout);
    PA_ResetSecondarySetup(state.continuation);
+   PA_ResetSecondarySetup(state.model_b2);
    state.last_emitted_setup_id="";
   }
 
@@ -107,6 +114,7 @@ string PA_StrategyName(const PA_StrategyType strategy)
    if(strategy==PA_STRATEGY_BOS_OB_RETEST) return "BOS_OB_RETEST";
    if(strategy==PA_STRATEGY_BREAKOUT_RETEST) return "BREAKOUT_RETEST";
    if(strategy==PA_STRATEGY_TREND_PULLBACK) return "TREND_PULLBACK";
+   if(strategy==PA_STRATEGY_SWEEP_RECLAIM_MSS) return "SWEEP_RECLAIM_MSS_B2";
    return "NONE";
   }
 
@@ -363,6 +371,146 @@ void PA_CaptureM15BOS(const string symbol,
      }
    else
       PA_ResetSecondarySetup(state.continuation);
+  }
+
+
+bool PA_EvaluateModelB2(const string symbol,
+                        const MqlRates &m15_rates[],const int m15_count,
+                        const MqlRates &d1_rates[],const int d1_count,
+                        const MqlRates &m5_rates[],const int m5_count,
+                        const double spread_price,const int context_direction,
+                        const PA_StructureSnapshot &m5_snapshot,
+                        PA_SecondarySetup &setup,PA_StrategySignal &signal)
+  {
+   PA_ResetStrategySignal(signal);
+   if(symbol=="" || m15_count<20 || m5_count<20 || d1_count<1 ||
+      spread_price<0.0 || (context_direction!=1 && context_direction!=-1) ||
+      m5_rates[1].time<=0)
+     { signal.rejection_reason="MODEL_B2_INVALID_INPUT"; return false; }
+   const double atr=PA_SecondaryATR(m15_rates,m15_count,14);
+   if(atr<=0.0)
+     { signal.rejection_reason="MODEL_B2_M15_ATR_NOT_READY"; return false; }
+
+   if(setup.stage==PA_SECONDARY_IDLE)
+     {
+      double sh=0.0,sl=0.0,ph=0.0,pl=0.0;
+      datetime sht=0,slt=0,pht=0,plt=0;
+      const bool have_high=PA_GetLatestTwoConfirmedSwings(m15_rates,m15_count,80,true,sh,sht,ph,pht);
+      const bool have_low=PA_GetLatestTwoConfirmedSwings(m15_rates,m15_count,80,false,sl,slt,pl,plt);
+      const double min_distance=MathMax(0.05*atr,2.0*spread_price);
+      double level=0.0,extreme=0.0,best=0.0;
+      bool found=false;
+      if(context_direction>0)
+        {
+         if(have_low && m5_rates[1].time>slt)
+           { const double d=sl-m5_rates[1].low;
+             if(m5_rates[1].low<sl && d>=min_distance)
+               { found=true; level=sl; extreme=m5_rates[1].low; best=d; } }
+         if(d1_count>1 && m5_rates[1].time>d1_rates[1].time)
+           { const double d=d1_rates[1].low-m5_rates[1].low;
+             if(m5_rates[1].low<d1_rates[1].low && d>=min_distance && d>best)
+               { found=true; level=d1_rates[1].low; extreme=m5_rates[1].low; } }
+        }
+      else
+        {
+         if(have_high && m5_rates[1].time>sht)
+           { const double d=m5_rates[1].high-sh;
+             if(m5_rates[1].high>sh && d>=min_distance)
+               { found=true; level=sh; extreme=m5_rates[1].high; best=d; } }
+         if(d1_count>1 && m5_rates[1].time>d1_rates[1].time)
+           { const double d=m5_rates[1].high-d1_rates[1].high;
+             if(m5_rates[1].high>d1_rates[1].high && d>=min_distance && d>best)
+               { found=true; level=d1_rates[1].high; extreme=m5_rates[1].high; } }
+        }
+      if(!found)
+        { signal.rejection_reason="MODEL_B2_NO_QUALIFIED_M15_OR_PREVIOUS_DAY_SWEEP"; return false; }
+      setup.stage=PA_SECONDARY_WAIT_RECLAIM;
+      setup.direction=context_direction;
+      setup.source_event_time=m5_rates[1].time;
+      setup.setup_created_time=m5_rates[1].time;
+      setup.reference_level=level;
+      setup.pullback_extreme=extreme;
+      setup.zone_low=0.0; setup.zone_high=0.0; setup.bars_waiting=0;
+      setup.setup_id=PA_MakeSecondarySetupId(symbol,PA_STRATEGY_SWEEP_RECLAIM_MSS,
+         context_direction,setup.source_event_time,level);
+      const bool reclaimed=context_direction>0 ? m5_rates[1].close>level : m5_rates[1].close<level;
+      if(reclaimed)
+        { setup.stage=PA_SECONDARY_WAIT_MSS; signal.rejection_reason="MODEL_B2_SAME_BAR_RECLAIM_WAIT_MSS"; }
+      else signal.rejection_reason="MODEL_B2_SWEEP_CAPTURED_WAIT_RECLAIM";
+      return false;
+     }
+
+   if(setup.direction!=context_direction)
+     { PA_ResetSecondarySetup(setup); signal.rejection_reason="MODEL_B2_CONTEXT_DIRECTION_INVALIDATED"; return false; }
+   if(m5_rates[1].time<=setup.source_event_time)
+     { signal.rejection_reason="MODEL_B2_WAITING_FOR_NEXT_CLOSED_BAR"; return false; }
+   setup.bars_waiting++;
+   if(setup.bars_waiting>12)
+     { PA_ResetSecondarySetup(setup); signal.rejection_reason="MODEL_B2_SETUP_EXPIRED"; return false; }
+   if((setup.direction>0 && m5_rates[1].low<setup.pullback_extreme) ||
+      (setup.direction<0 && m5_rates[1].high>setup.pullback_extreme))
+     { PA_ResetSecondarySetup(setup); signal.rejection_reason="MODEL_B2_SWEEP_EXTREME_BREACHED"; return false; }
+
+   if(setup.stage==PA_SECONDARY_WAIT_RECLAIM)
+     {
+      const bool reclaimed=setup.direction>0 ? m5_rates[1].close>setup.reference_level
+                                              : m5_rates[1].close<setup.reference_level;
+      if(reclaimed)
+        { setup.stage=PA_SECONDARY_WAIT_MSS; setup.setup_created_time=m5_rates[1].time;
+          signal.rejection_reason="MODEL_B2_RECLAIM_CONFIRMED_WAIT_MSS"; }
+      else if(setup.bars_waiting>=2)
+        { PA_ResetSecondarySetup(setup); signal.rejection_reason="MODEL_B2_RECLAIM_DEADLINE_MISSED"; }
+      else signal.rejection_reason="MODEL_B2_WAITING_FOR_RECLAIM";
+      return false;
+     }
+   if(setup.stage==PA_SECONDARY_WAIT_MSS)
+     {
+      if(m5_rates[1].time<=setup.setup_created_time)
+        { signal.rejection_reason="MODEL_B2_RECLAIM_CANDLE_CANNOT_BE_MSS"; return false; }
+      const bool mss=(setup.direction>0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BULLISH) ||
+                     (setup.direction<0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BEARISH);
+      if(!mss) { signal.rejection_reason="MODEL_B2_WAITING_FOR_DISTINCT_MSS"; return false; }
+      setup.stage=PA_SECONDARY_WAIT_CONFIRMATION;
+      setup.setup_created_time=m5_rates[1].time;
+      signal.rejection_reason="MODEL_B2_MSS_CONFIRMED_WAIT_DIRECTIONAL_CANDLE";
+      return false;
+     }
+   if(setup.stage==PA_SECONDARY_WAIT_CONFIRMATION)
+     {
+      if(m5_rates[1].time<=setup.setup_created_time) return false;
+      const double mid=(m5_rates[1].high+m5_rates[1].low)/2.0;
+      const bool confirmed=setup.direction>0
+         ? (m5_rates[1].close>m5_rates[1].open && m5_rates[1].close>mid)
+         : (m5_rates[1].close<m5_rates[1].open && m5_rates[1].close<mid);
+      if(!confirmed) { signal.rejection_reason="MODEL_B2_WAITING_FOR_DIRECTIONAL_CONFIRMATION"; return false; }
+      if(setup.direction>0) setup.zone_high=m5_rates[1].high;
+      else setup.zone_low=m5_rates[1].low;
+      setup.stage=PA_SECONDARY_WAIT_TRIGGER;
+      setup.setup_created_time=m5_rates[1].time;
+      signal.rejection_reason="MODEL_B2_CONFIRMATION_CANDLE_CAPTURED_WAIT_TRIGGER";
+      return false;
+     }
+   if(setup.stage==PA_SECONDARY_WAIT_TRIGGER)
+     {
+      if(m5_rates[1].time<=setup.setup_created_time) return false;
+      const bool trigger=setup.direction>0
+         ? (m5_rates[1].close>setup.zone_high && m5_rates[1].close>m5_rates[1].open)
+         : (m5_rates[1].close<setup.zone_low && m5_rates[1].close<m5_rates[1].open);
+      if(!trigger) { signal.rejection_reason="MODEL_B2_WAITING_FOR_CONFIRMATION_TRIGGER_BREAK"; return false; }
+      signal.strategy=PA_STRATEGY_SWEEP_RECLAIM_MSS;
+      signal.direction=setup.direction; signal.signal_bar_time=m5_rates[1].time;
+      signal.source_event_time=setup.source_event_time;
+      signal.reference_level=setup.reference_level;
+      signal.invalidation_level=setup.pullback_extreme;
+      signal.zone_low=setup.zone_low; signal.zone_high=setup.zone_high;
+      signal.setup_id=setup.setup_id;
+      signal.rejection_reason="MODEL_B2_SIGNAL_READY_NO_ORDER_SENT";
+      PA_ResetSecondarySetup(setup);
+      return true;
+     }
+   signal.rejection_reason="MODEL_B2_UNKNOWN_STAGE";
+   PA_ResetSecondarySetup(setup);
+   return false;
   }
 
 bool PA_EvaluateBOSOrderBlockRetest(const string symbol,
