@@ -153,6 +153,10 @@ void PA_ProcessNewM5Bar()
 
    // Secondary setups are driven by the latest completed M15 BOS and the
    // same completed M5 candle used by the primary strategy.
+   MqlRates h1_rates[];
+   ArraySetAsSeries(h1_rates,true);
+   const int h1_copied = CopyRates(g_symbol,PERIOD_H1,0,InpHistoryBars,h1_rates);
+
    MqlRates m15_rates[];
    ArraySetAsSeries(m15_rates,true);
    const int m15_copied = CopyRates(g_symbol,PERIOD_M15,0,InpHistoryBars,m15_rates);
@@ -160,15 +164,16 @@ void PA_ProcessNewM5Bar()
    PA_StrategySignal secondary_signal;
    PA_ResetStrategySignal(secondary_signal);
    bool secondary_evaluated = false;
-   if(m15_copied >= 20)
+   if(h1_copied>=20 && m15_copied>=20)
      {
       secondary_evaluated = PA_RunSecondaryStrategies(
-         g_symbol,InpMagicNumber,m15_rates,m15_copied,g_m15_structure,
+         g_symbol,InpMagicNumber,h1_rates,h1_copied,
+         m15_rates,m15_copied,g_m15_structure,
          context,m5_rates,copied,spread_price,m5_snapshot,
          g_secondary_state,secondary_signal);
      }
    else
-      secondary_signal.rejection_reason = "M15_HISTORY_INSUFFICIENT_FOR_SECONDARY";
+      secondary_signal.rejection_reason = "H1_OR_M15_HISTORY_INSUFFICIENT_FOR_SECONDARY";
 
    // One arbitration point for every strategy on this closed M5 bar.
    PA_StrategySignal secondary_candidates[1];
