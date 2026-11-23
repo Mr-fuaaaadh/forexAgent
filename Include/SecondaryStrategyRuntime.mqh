@@ -25,6 +25,8 @@ string PA_SecondaryHashMarker(const string setup_id)
 
 bool PA_RunSecondaryStrategies(const string symbol,
                                const long magic_number,
+                               const MqlRates &h1_rates[],
+                               const int h1_count,
                                const MqlRates &m15_rates[],
                                const int m15_count,
                                const PA_StructureState &m15_state,
@@ -37,8 +39,9 @@ bool PA_RunSecondaryStrategies(const string symbol,
                                PA_StrategySignal &selected)
   {
    PA_ResetStrategySignal(selected);
-   if(symbol=="" || magic_number<=0 || m15_count<20 || m5_count<20 ||
-      m15_rates[1].time<=0 || m5_rates[1].time<=0 ||
+   if(symbol=="" || magic_number<=0 || h1_count<20 ||
+      m15_count<20 || m5_count<20 ||
+      h1_rates[1].time<=0 || m15_rates[1].time<=0 || m5_rates[1].time<=0 ||
       spread_price<0.0)
      {
       selected.rejection_reason="INVALID_SECONDARY_RUNTIME_INPUT";
@@ -90,7 +93,8 @@ bool PA_RunSecondaryStrategies(const string symbol,
       PA_ResetSecondarySetup(state.continuation);
 
    // Capture an M15 BOS only when it is the currently completed M15 bar.
-   PA_CaptureM15BOS(symbol,m15_rates,m15_count,m15_state,context,state);
+   PA_CaptureM15BOS(symbol,h1_rates,h1_count,m15_rates,m15_count,
+                     m15_state,context,state);
 
    PA_StrategySignal candidates[3];
    for(int i=0;i<3;i++)
