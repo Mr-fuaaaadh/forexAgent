@@ -42,6 +42,22 @@ void BuildM5(MqlRates &rates[],const datetime latest_time)
      }
   }
 
+void BuildBullishH1(MqlRates &rates[],const datetime latest_time)
+  {
+   ArrayResize(rates,40);
+   ArraySetAsSeries(rates,true);
+   for(int i=0;i<40;i++)
+     {
+      rates[i].time=latest_time-(datetime)((i-1)*3600);
+      rates[i].open=21.0; rates[i].high=25.0;
+      rates[i].low=20.0; rates[i].close=22.0;
+      rates[i].tick_volume=100; rates[i].spread=10;
+      rates[i].real_volume=100;
+     }
+   rates[14].high=26.0; rates[12].low=14.0;
+   rates[8].high=28.0; rates[6].low=17.0;
+  }
+
 void OnStart()
   {
    MqlRates rates[];
@@ -53,6 +69,12 @@ void OnStart()
 
    const datetime now=TimeCurrent();
    BuildM5(rates,now);
+   MqlRates h1_rates[];
+   BuildBullishH1(h1_rates,now);
+   Check("H1 HH/HL sequence qualifies bullish Model A",
+         PA_HasConfirmedH1TrendStructure(h1_rates,ArraySize(h1_rates),1));
+   Check("H1 HH/HL sequence does not qualify bearish Model A",
+         !PA_HasConfirmedH1TrendStructure(h1_rates,ArraySize(h1_rates),-1));
 
    // Confirm that a new M15 BOS captures all three independent setup types.
    MqlRates m15_rates[];
@@ -101,14 +123,18 @@ void OnStart()
 
    PA_SecondaryStrategyState captured;
    PA_ResetSecondaryStrategyState(captured);
-   PA_CaptureM15BOS(_Symbol,m15_rates,ArraySize(m15_rates),
+   PA_CaptureM15BOS(_Symbol,h1_rates,ArraySize(h1_rates),
+                    m15_rates,ArraySize(m15_rates),
                     m15_state,context,captured);
    Check("M15 BOS captures OB, breakout and continuation setups",
          captured.order_block.stage==PA_SECONDARY_WAIT_RETEST &&
          captured.breakout.stage==PA_SECONDARY_WAIT_RETEST &&
-         captured.continuation.stage==PA_SECONDARY_WAIT_PULLBACK);
+         captured.continuation.stage==PA_SECONDARY_WAIT_PULLBACK &&
+         captured.continuation.zone_low<captured.continuation.reference_level &&
+         captured.continuation.zone_high>captured.continuation.reference_level);
 
-   PA_CaptureM15BOS(_Symbol,m15_rates,ArraySize(m15_rates),
+   PA_CaptureM15BOS(_Symbol,h1_rates,ArraySize(h1_rates),
+                    m15_rates,ArraySize(m15_rates),
                     m15_state,context,captured);
    Check("same M15 BOS event is not captured twice",
          captured.last_seen_m15_event_time==m15_state.last_structure_event_time);
@@ -157,37 +183,54 @@ void OnStart()
          breakout_ok && signal.strategy==PA_STRATEGY_BREAKOUT_RETEST &&
          signal.direction==1 && signal.setup_id!="");
 
-   // Trend continuation: first touch the broken level, then form a higher
-   // low and close above the previous candle high.
+   // Model A: a rejection inside the frozen M15 ATR band, followed by
+   // a separate completed M5 close above the rejection candle's high.
+   BuildM5(rates,now);
    PA_SecondarySetup trend;
    PA_ResetSecondarySetup(trend);
    trend.stage=PA_SECONDARY_WAIT_PULLBACK;
    trend.direction=1;
    trend.source_event_time=now-1800;
+   trend.setup_created_time=now-900;
    trend.reference_level=20.0;
-   rates[1].low=19.7;
-   rates[1].open=20.0;
-   rates[1].close=20.8;
-   rates[1].high=21.0;
+   trend.zone_low=19.7;
+   trend.zone_high=20.3;
+   rates[1].open=20.5; rates[1].low=19.9;
+   rates[1].high=21.0; rates[1].close=20.8;
    const bool pullback_seen=PA_EvaluateTrendPullback(_Symbol,rates,
       ArraySize(rates),0.05,snapshot,trend,signal);
-   Check("trend pullback stage captured",
-         !pullback_seen && trend.stage==PA_SECONDARY_WAIT_CONTINUATION);
+   Check("Model A captures directional rejection inside pullback band",
+         !pullback_seen && trend.stage==PA_SECONDARY_WAIT_CONTINUATION &&
+         trend.pullback_extreme==19.9);
 
-   // Advance the series by one completed M5 candle. The prior pullback
-   // candle becomes shift 2; the continuation candle is the new shift 1.
-   rates[2].time=rates[1].time;
+   rates[2]=rates[1];
    rates[1].time=rates[2].time+300;
-   rates[2].high=21.0;
-   rates[1].low=19.8;
-   rates[1].open=21.0;
-   rates[1].close=22.0;
-   rates[1].high=22.5;
+   rates[1].open=20.8; rates[1].low=20.0;
+   rates[1].high=21.4; rates[1].close=21.2;
    const bool continuation_ok=PA_EvaluateTrendPullback(_Symbol,rates,
       ArraySize(rates),0.05,snapshot,trend,signal);
-   Check("trend continuation emits bullish signal after higher low",
+   Check("Model A emits only after later close breaks rejection high",
          continuation_ok && signal.strategy==PA_STRATEGY_TREND_PULLBACK &&
-         signal.direction==1 && signal.setup_id!="");
+         signal.direction==1 && signal.setup_id!="" &&
+         signal.invalidation_level==19.9);
+
+   PA_SecondarySetup no_rejection;
+   PA_ResetSecondarySetup(no_rejection);
+   no_rejection.stage=PA_SECONDARY_WAIT_PULLBACK;
+   no_rejection.direction=1;
+   no_rejection.source_event_time=now-1800;
+   no_rejection.setup_created_time=now-900;
+   no_rejection.reference_level=20.0;
+   no_rejection.zone_low=19.7;
+   no_rejection.zone_high=20.3;
+   BuildM5(rates,now);
+   rates[1].open=20.0; rates[1].low=19.9;
+   rates[1].high=21.0; rates[1].close=20.1;
+   const bool no_reject_signal=PA_EvaluateTrendPullback(_Symbol,rates,
+      ArraySize(rates),0.05,snapshot,no_rejection,signal);
+   Check("Model A rejects zone touch without directional rejection",
+         !no_reject_signal && no_rejection.stage==PA_SECONDARY_WAIT_PULLBACK &&
+         signal.rejection_reason=="PULLBACK_TOUCH_WITHOUT_DIRECTIONAL_REJECTION");
 
    // Same-direction candidates resolve by priority: BOS/OB before breakout.
    PA_StrategySignal candidates[3];
