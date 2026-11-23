@@ -3,14 +3,20 @@
 All notable project changes are recorded here.
 
 ## Unreleased
+
+- Froze the mechanical XAUUSD A/B1/B2/C/D research baseline in `Documentation/STRATEGY_RULES.md`.
+- Defined B1 and B2 as distinct, separately testable liquidity-sweep variants.
+- Specified Model A trend structure and ATR pullback zone, Model C compression range and retest deadline, and Model D session windows with explicit IANA timezone/DST behavior.
+- Resolved the structural stop-buffer discrepancy as max(0.10 × M5 ATR(14), 2 × spread); baseline target is 2R, with 1.5R and 2.5R as separate experiments.
+- Defined hybrid eligibility precedence D → C → A → B, conflict rejection, model time exits, and initial news-filter-disabled comparison.
+- Expanded deterministic fixture requirements, performance data split, and roadmap.
+- Documentation/specification only: no MQL5 source, order execution behavior, or live-trading capability changed. `InpEnableTrading=false` remains the default; execution remains DEMO + HEDGING only.
+
+## Previous work
+
 - Reconciled repository documentation with the current root EA, secondary runtime, and demo execution source.
 - Added a research-to-code gap audit for the A/B/C/D hybrid strategy target.
 - Clarified that root EA arbitration is integrated and that a DEMO + HEDGING-only order execution path exists behind `InpEnableTrading=false`.
-- Corrected outdated signal-only/no-order claims and obsolete risk/configuration values.
-- Documented remaining execution-hardening gaps: maximum spread filter, stop buffer, post-fill protection verification, currency/contract validation, and incomplete challenge metrics.
-- No MQL5 source behavior was changed in this documentation-only update.
-
-## Previous work
 - Added demo-only order execution, risk-based volume sizing, challenge loss/target guards, and pending day-start baseline activation.
 - Added BOS/order-block retest, breakout/retest, and trend-continuation/pullback signal modules.
 - Added unified strategy priority arbitration and conflicting-direction rejection.
