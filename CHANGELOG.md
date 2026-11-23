@@ -14,6 +14,8 @@ All notable project changes are recorded here.
 - Expanded deterministic fixture requirements, performance data split, and roadmap.
 - Documentation/specification only: no MQL5 source, order execution behavior, or live-trading capability changed. `InpEnableTrading=false` remains the default; execution remains DEMO + HEDGING only.
 
+- Implemented Model B2 as a distinct persisted sweep/reclaim/MSS/confirmation/trigger state machine using M15 swing and previous completed D1 levels; added independent fixture coverage. MetaEditor compilation, fixture execution, Strategy Tester and DEMO forward validation remain pending.
+
 ## Previous work
 
 - Reconciled repository documentation with the current root EA, secondary runtime, and demo execution source.

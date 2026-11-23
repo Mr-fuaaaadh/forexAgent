@@ -15,7 +15,7 @@
 - [x] Model A signal generation: explicit H1 HH/HL or LL/LH qualification, ±0.15 × M15 ATR pullback zone, M5 directional rejection, and a later confirmation break.
 - [ ] Model A post-entry 24-M5-bar time exit in the position manager (separate from pending-setup expiry).
 - [ ] Model B1: preserve and independently test staged sweep → later CHoCH → FVG → retest.
-- [ ] Model B2: implement and independently test sweep → reclaim within 2 M5 bars → later MSS → confirmation.
+- [x] Model B2 signal generation: independent persisted sweep → reclaim within 2 M5 bars → later MSS → confirmation/trigger path; MetaEditor compile, fixture execution and backtest still pending.
 - [ ] Model C: implement 12-completed-M15-bar range, 0.8–3.0 ATR width, ≥0.10 ATR breakout displacement, and six-M5-bar retest deadline.
 - [ ] Model D: implement Asian UTC range and London/New York local-time expansion windows with IANA DST-safe conversion; fail closed if timezone conversion is unavailable.
 - [ ] Build regime router with precedence D → C → A → B and explicit no-trade state.
