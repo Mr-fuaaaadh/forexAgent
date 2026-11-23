@@ -1,48 +1,48 @@
 # Testing and validation
 
 ## Evidence policy
-Never claim a compile or backtest passed unless it was actually run. Record terminal/build version, broker/demo server, symbol specification, date range, modelling mode, spread/commission assumptions, and report artifact.
+Never claim a compile, fixture, backtest, or demo execution test passed unless it was actually run. Record MT5 build, broker/demo server, symbol specification, date range, modelling mode, spread/commission/swap assumptions, and report artifacts.
 
-## Test layers
-1. Static review: strict types, return-value checks, no bar-zero signals, no lookahead.
-2. Unit-style deterministic tests for pivots, BOS, CHoCH, sweeps, FVG, setup arbitration, lot rounding, risk caps, and setup IDs.
-3. Strategy Tester: every strategy separately, then combined priority mode.
-4. Execution scenarios: partial fills, rejected orders, spread spikes, stop-level constraints, market closure, disconnect/restart.
-5. Account modes: hedging and netting.
-6. Demo forward test across different sessions and broker symbol variants.
-
-## M5 signal engine scenarios
-- Bullish and bearish sweeps followed by later directional CHoCH, completed directional FVG, and subsequent directional FVG retest emit signals only.
+## Strategy signal fixtures
+### Primary sweep / CHoCH / FVG
+- Bullish and bearish sweep followed by a later directional CHoCH, completed directional FVG, and later retest.
 - Sweep and CHoCH on the same candle must not satisfy the staged setup.
-- Higher-timeframe conflict invalidates a pending setup and never emits a signal.
-- An opposite but otherwise aligned H1/M15 context invalidates a pending directional setup.
-- A close through the sweep extreme or FVG far boundary invalidates the setup.
-- Duplicate/old M5 bar timestamps never emit a second signal.
-- Pending setup state and last emitted setup ID survive terminal restart.
-- Setup expiry and opposite M5 CHoCH invalidate pending setup.
+- HTF conflict, direction flip, sweep-extreme breach, FVG invalidation, expiry, and duplicate timestamp must fail closed.
+- Pending setup and emitted setup ID must survive restart without duplicate signal.
 
-## Secondary strategy scenarios
-- New M15 BOS captures the nearest opposing candle as a frozen order-block zone.
-- The same M15 BOS event is never captured twice.
-- Order-block retest requires overlap and directional M5 confirmation; structural invalidation cancels the setup.
-- Breakout requires M15 body greater than 0.5 ATR, then a later M5 retest and confirmation.
-- Trend continuation requires a later pullback, higher low/lower high, and close beyond the prior M5 extreme.
-- A secondary setup cannot trigger on the M5 candle that closes the M15 BOS; it must wait for a later M5 candle.
-- Secondary pending setups expire and invalidate on structural failure or H1/M15 context flip.
-- Same-direction signals resolve by priority; any opposing qualified direction blocks all signals.
-- Primary sweep/CHoCH/FVG signal outranks every secondary signal.
+### Secondary BOS/OB, breakout, and trend pullback
+- M15 BOS captures the nearest opposing candle once.
+- OB retest requires overlap and directional M5 confirmation; invalidation cancels.
+- Breakout body threshold and later M5 retest/confirmation are deterministic.
+- Trend pullback waits for a later pullback and continuation confirmation.
+- Secondary setups expire and invalidate on structural failure/context flip.
+- Same M15 BOS event is not captured twice.
+- Same-direction qualified candidates resolve by priority; opposing qualified directions block all signals.
+- Primary strategy outranks secondary strategies.
 
-## Required scenarios
-- Wick crosses swing but candle does not close beyond: no BOS.
-- Pivot has fewer than 3 right-side closed bars: not confirmed.
-- Missing/stale calendar: no new entries.
-- Risk conversion unavailable/stale: no new entries.
-- Minimum lot exceeds risk budget: reject.
-- Duplicate setup candle/restart: no duplicate order.
-- Daily/weekly limits reached: lockout behavior and EA-owned order handling.
-- Conflicting directions: no trade.
-- SL/TP not verified after fill: emergency protection/close path.
-- Manual positions with another Magic Number: never modified.
+## Root runtime integration
+- Verify the root EA evaluates the newly closed M5 bar once.
+- Verify primary and secondary paths consume the same decision bar without advancing live M5 structure state twice.
+- Verify all qualified outputs reach one arbitration point.
+- Verify a selected signal is only logged when execution is disabled or pending.
+- Verify no order is submitted when `InpEnableTrading=false), on a non-DEMO account, on a non-HEDGING account, or when terminal/account/expert permissions are absent.
+- Verify day-start baseline absence keeps the EA attached but signal-only until the permitted server-day opening window.
+
+## Execution and risk scenarios (DEMO only)
+- Position sizing uses `OrderCalcProfit()`; volume floors to broker step and never exceeds risk budget.
+- Minimum volume greater than risk budget rejects the order.
+- Maximum three EA-owned positions and 1.5% combined open risk are enforced.
+- Missing/uncomputable SL on a managed position blocks new entries and triggers the emergency close path.
+- Daily 2%, static 12%, and target 10% lockouts block entries and invoke managed-position close behavior.
+- Broker minimum stop distance and `OrderCheck()` rejection are handled.
+- Duplicate setup reservation prevents resubmission after ambiguous outcomes.
+- Partial fills, order rejections, post-fill SL/TP, actual risk, disconnect/restart, spread spikes, and broker rollover require dedicated tests.
+
+## Required account and broker cases
+- DEMO + HEDGING accepted only when all permissions are present.
+- REAL, CONTEST, netting, exchange, or unavailable-permission accounts must never send orders.
+- Validate XAUUSD symbol metadata, digits, tick size/value, contract size, volume min/max/step, filling mode, stops level, freeze level, and account currency.
+- Other Magic Numbers and manual positions must not be modified.
 
 ## Performance reporting
-Report net profit, profit factor, expected payoff, max drawdown (equity and balance), trade count, win/loss distribution, average R, exposure, costs, and out-of-sample results. Include sensitivity and walk-forward analysis. Historical results do not guarantee future performance.
+Report net profit, profit factor, expected payoff, equity and balance drawdown, trade count, win/loss distribution, average R, exposure, spread/commission/swap, and out-of-sample results. Include sensitivity, walk-forward, and Monte Carlo analysis. Historical results do not guarantee future performance.
