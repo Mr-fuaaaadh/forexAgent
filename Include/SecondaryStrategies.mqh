@@ -502,7 +502,7 @@ bool PA_EvaluateTrendPullback(const string symbol,
       return false;
      }
    setup.bars_waiting++;
-   if(setup.bars_waiting>24)
+   if(setup.bars_waiting>48)
      {
       PA_ResetSecondarySetup(setup);
       signal.rejection_reason="TREND_PULLBACK_SETUP_EXPIRED";
