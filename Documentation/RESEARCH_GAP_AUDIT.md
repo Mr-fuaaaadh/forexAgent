@@ -1,31 +1,38 @@
 # Research-to-code gap audit
 
 ## Scope and safety
-This audit compares current repository source with the agreed XAUUSD hybrid research target. It is a documentation/source-inspection exercise only; no MQL5 behavior is changed here. Execution remains false-by-default and the order path is restricted to DEMO + HEDGING.
 
-## Target configuration
+This audit compares current repository source with the frozen XAUUSD hybrid research baseline. The specification is frozen in `STRATEGY_RULES.md`; this does not mean the rules are implemented or validated. This update is documentation-only; no MQL5 behavior is changed. Execution remains false-by-default and restricted to DEMO + HEDGING.
+
+## Frozen target configuration
+
 - Instrument: XAUUSD; M5 entries; H1 + M15 context.
 - Account target: USD 5,000 demo, hedging.
 - Risk: 0.5% per trade; max 3 managed positions; max aggregate open risk 1.5%.
 - Daily internal loss lock: 2%; static max loss: 12%; profit target: 10%.
-- Models A/B/C/D; hybrid frequency target balanced.
-- Live trading is out of scope and blocked by current execution account checks.
+- Models A, B1, B2, C, D; balanced-frequency hybrid objective.
+- Stop buffer: max(0.10 × M5 ATR(14), 2 × spread); baseline TP 2R; compare 1.5R and 2.5R separately.
+- Initial controlled model comparison has news filter disabled.
+- Live trading is out of scope; current execution checks remain DEMO + HEDGING only.
 
-## Model-by-model comparison
+## Frozen model definitions versus current repository
 
-| Model | Research definition | Current repository | Status |
+| Model | Frozen research definition | Current repository | Status |
 |---|---|---|---|
-| A — trend pullback | H1 HH/HL or LL/LH; M15 aligned; pullback to broken swing within ±0.15 × M15 ATR; M5 rejection and continuation break | H1/M15 alignment + M15 BOS + broken swing pullback reference + M5 higher-low/lower-high continuation. Explicit H1 swing-sequence qualification and exact M15 ATR band are not fully implemented. | Partial |
-| B — liquidity sweep reversal | Sweep of M15 swing or prior-day high/low; minimum sweep distance; reclaim in sweep candle or next 2 M5 bars; M5 MSS/CHoCH and trigger confirmation | Primary stages sweep → later CHoCH → directional FVG → FVG retest/confirmation. Related but different variant; prior-day levels and two-bar reclaim are not established as equivalent. | Partial / variant differs |
-| C — compression breakout | Range from 12 completed M15 candles; width 0.8–3.0 × M15 ATR; close outside by ≥0.10 × ATR; retest within 6 M5 bars | Secondary breakout requires aligned M15 BOS and BOS body >0.5 × M15 ATR, then M5 retest/confirmation; expiry is 36 M5 bars. Full range/compression definition and six-bar deadline are absent. | Partial |
-| D — session expansion | Asian range UTC 00:00–06:00; London 07:00–10:00; New York 13:00–16:00; breakout/retest; DST-safe timezone handling | No session expansion model found in current root/runtime/secondary modules. | Missing |
+| A — trend pullback | H1 HH/HL or LL/LH; M15 aligned; pullback to broken swing ±0.15 × M15 ATR; M5 rejection and later continuation break; 24-bar time exit | H1/M15 alignment + M15 BOS + broken swing reference + M5 higher-low/lower-high continuation. Explicit H1 swing-sequence qualification and exact ATR band are not fully implemented. | Partial |
+| B1 — staged liquidity reversal | M15 swing/previous-day sweep; minimum excursion; later M5 CHoCH; post-CHoCH FVG; later retest/confirmation; 12-bar time exit | Primary path stages sweep → later CHoCH → directional FVG → retest/confirmation. Previous-day references and exact frozen sweep threshold require verification. | Partial / closest |
+| B2 — fast-reclaim reversal | Sweep; reclaim on sweep candle or next 2 M5 bars; distinct later MSS; later confirmation/trigger; 12-bar time exit | Not implemented as a separate, independently attributable variant. | Missing |
+| C — compression breakout | 12 completed M15 bars; range 0.8–3.0 × M15 ATR; close outside by ≥0.10 ATR; M5 retest within 6 bars; later confirmation; 12-bar time exit | Existing secondary breakout uses aligned M15 BOS with body >0.5 × M15 ATR and M5 retest/confirmation; full range/compression formula and deadline are absent. | Partial / differs |
+| D — session expansion | Asian 00:00–06:00 UTC; London 07:00–10:00 Europe/London; New York 08:00–11:00 America/New_York; DST-safe; breakout/retest/confirmation; 18-bar time exit | No session expansion model found in current root/runtime/secondary modules. | Missing |
 
-## Hybrid selection logic
-Current implementation uses fixed priority arbitration: primary sweep/CHoCH/FVG, BOS/OB, breakout/retest, trend pullback. It rejects any same-decision direction conflict. This is not the requested regime-aware router. The research target calls for eligibility based on trend, range/liquidity, compression/expansion, and session-expansion regimes. Model D and the router are separate missing deliverables.
+## Hybrid routing
+
+Frozen router precedence: session expansion D → compression/expansion C → trend A → range/liquidity B. Opposing qualified directions reject the decision; same-direction simultaneous candidates select one only; no qualifying regime means no trade. Current implementation uses fixed priority arbitration: primary sweep/CHoCH/FVG, BOS/OB, breakout/retest, trend pullback. It rejects any same-decision direction conflict. This is not the frozen regime-aware router.
 
 ## Execution and risk comparison
 
-### Present in source
+### Present in source (as previously inspected)
+
 - `InpEnableTrading=false` by default; DEMO account and HEDGING margin mode required.
 - Terminal connection and account/expert trading permissions checked.
 - Risk-based volume uses `OrderCalcProfit()`, rounds down to broker volume step, and recalculates.
@@ -36,30 +43,28 @@ Current implementation uses fixed priority arbitration: primary sweep/CHoCH/FVG,
 - Setup ID reservation prevents automatic duplicate resubmission.
 - Managed-position guard checks missing/uncomputable SL and attempts to close managed positions.
 
-### Gaps requiring hardening
-1. **Stop buffer conflict:** research notes specify at least max(0.05 × ATR, 2 × spread), while an earlier note uses 0.10 × M5 ATR. Current execution sets SL at raw signal invalidation. Freeze one formula before coding.
+### Frozen requirements still requiring implementation or verification
+
+1. **Stop buffer:** frozen as max(0.10 × M5 ATR(14), 2 × spread). Current execution was observed to use raw signal invalidation.
 2. **Spread filter:** no explicit absolute max spread or spread/M5-ATR cap in the order path.
 3. **Post-fill verification:** actual fill price, filled volume, broker-side SL/TP, and realized initial risk are not reconciled after fill/partial fill.
 4. **Trade lifecycle:** ambiguous outcomes are fail-closed by keeping setup reserved, but a complete transaction/recovery state machine is not present.
-5. **Account currency and contract:** challenge amounts are interpreted in account currency; no explicit USD account-currency validation/conversion layer is present. Validate currency and XAUUSD contract metadata before execution.
-6. **Challenge day count:** current marker records an EA-owned entry day and the minimum-day predicate checks marker existence; it is not a distinct-day counter.
-7. **Daily guard:** internal 2% limit is stricter than the separate 4% challenge threshold, so 4% is a secondary ceiling.
-8. **Other controls:** no verified weekly loss, trades/day cap, consecutive-loss pause, cooldown, news filter, rollover/session filter, or slippage-quality filter in the current execution path.
-9. **SL/TP policy:** current target is fixed 2R; cost-aware minimum-R and alternative 1.5R/2.5R comparisons remain research tasks.
+5. **Account currency and contract:** challenge amounts are interpreted in account currency; no explicit USD account-currency validation/conversion layer is present.
+6. **Challenge day count:** current marker records an EA-owned entry day and minimum-day predicate checks marker existence; it is not a distinct-day counter.
+7. **Time exits:** frozen model-specific holding limits are not confirmed implemented.
+8. **Session timezone:** Model D requires IANA timezone/DST handling and must fail closed if unavailable.
+9. **News filter:** disabled only for initial controlled comparison; no conclusion about news exposure or later filter design.
+10. **Other controls:** no verified weekly loss, trades/day cap, consecutive-loss pause, cooldown, rollover filter, or slippage-quality filter in the current execution path.
+11. **TP research:** current target is fixed 2R; 1.5R and 2.5R are separate comparison runs, not yet evidenced.
 
 ## Validation gaps
+
 - Current code/fixtures need strict MetaEditor compilation and fixture execution on the target terminal.
 - Prior user-reported compile evidence belongs to an earlier source snapshot and is not proof for the current revision.
 - Supplied Strategy Tester run had incomplete history and generated ticks; it is inconclusive.
-- Test each model independently before hybrid portfolio testing.
-- Preserve final out-of-sample data; perform walk-forward, parameter sensitivity, cost stress, Monte Carlo, and demo forward tests.
+- Test A, B1, B2, C, and D independently before hybrid portfolio testing.
+- Preserve final out-of-sample data; perform walk-forward, parameter sensitivity, cost stress, Monte Carlo, and DEMO forward tests.
 
-## Recommended implementation order after specification freeze
-1. Freeze model definitions, including B1/B2 choice, C range formula, D timezone/DST policy, and SL buffer.
-2. Implement model-specific rule changes with deterministic fixtures; keep strategy and execution changes separate.
-3. Add regime router and duplicate/correlation controls.
-4. Harden execution: spread, stop buffer, post-fill verification, transaction lifecycle, currency/contract checks, and persisted challenge state.
-5. Run reproducible historical, out-of-sample, stress, and demo-forward validation.
+## Research acceptance boundary
 
-## Acceptance boundary
-This audit does not claim any model is profitable, the hybrid is complete, or execution is ready for live use. Live trading remains out of scope.
+Initial data split: development 2018–2022, validation 2023–2024, untouched OOS 2025–October 2026, subject to verified history availability. Research gates are screening criteria, not guarantees: OOS PF ≥1.20, positive net expectancy, max DD ≤8% preferred, ideally 100+ OOS trades/model, majority years positive, and positive expectancy under 1.5× spread stress. Report inadequate sample sizes as inconclusive. No model is currently claimed profitable or validated.
