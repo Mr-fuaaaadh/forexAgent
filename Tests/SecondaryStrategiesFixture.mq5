@@ -58,6 +58,13 @@ void BuildBullishH1(MqlRates &rates[],const datetime latest_time)
    rates[8].high=28.0; rates[6].low=17.0;
   }
 
+void BuildBearishH1(MqlRates &rates[],const datetime latest_time)
+  {
+   BuildBullishH1(rates,latest_time);
+   rates[14].high=28.0; rates[8].high=26.0;
+   rates[12].low=17.0; rates[6].low=14.0;
+  }
+
 void OnStart()
   {
    MqlRates rates[];
@@ -75,6 +82,14 @@ void OnStart()
          PA_HasConfirmedH1TrendStructure(h1_rates,ArraySize(h1_rates),1));
    Check("H1 HH/HL sequence does not qualify bearish Model A",
          !PA_HasConfirmedH1TrendStructure(h1_rates,ArraySize(h1_rates),-1));
+   MqlRates bearish_h1_rates[];
+   BuildBearishH1(bearish_h1_rates,now);
+   Check("H1 LL/LH sequence qualifies bearish Model A",
+         PA_HasConfirmedH1TrendStructure(bearish_h1_rates,
+                                          ArraySize(bearish_h1_rates),-1));
+   Check("H1 LL/LH sequence does not qualify bullish Model A",
+         !PA_HasConfirmedH1TrendStructure(bearish_h1_rates,
+                                           ArraySize(bearish_h1_rates),1));
 
    // Confirm that a new M15 BOS captures all three independent setup types.
    MqlRates m15_rates[];
