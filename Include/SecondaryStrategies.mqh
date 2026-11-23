@@ -488,7 +488,6 @@ bool PA_EvaluateTrendPullback(const string symbol,
                               const MqlRates &m5_rates[],
                               const int m5_count,
                               const double spread_price,
-                              const PA_StructureSnapshot &m5_snapshot,
                               PA_SecondarySetup &setup,
                               PA_StrategySignal &signal)
   {
