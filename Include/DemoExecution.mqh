@@ -20,6 +20,7 @@
 
 CTrade g_pa_trade;
 bool   g_pa_demo_execution_ready=false;
+bool   g_pa_demo_execution_pending=false;
 bool   g_pa_daily_locked=false;
 double g_pa_day_start_equity=0.0;
 int    g_pa_server_day_key=0;
@@ -108,22 +109,74 @@ bool PA_IsDemoHedgingAccount()
    return true;
   }
 
+bool PA_TryActivateDemoExecution()
+  {
+   if(!g_pa_demo_execution_pending)
+      return g_pa_demo_execution_ready;
+
+   if(!PA_IsDemoHedgingAccount())
+      return false;
+
+   const datetime server_time=TimeTradeServer();
+   if(server_time<=0)
+      return false;
+
+   const int today=PA_DayKey(server_time);
+   const string day_key=PA_ExecutionPrefix()+".day";
+   const string equity_key=PA_ExecutionPrefix()+".equity";
+
+   if(GlobalVariableCheck(day_key) && GlobalVariableCheck(equity_key) &&
+      (int)GlobalVariableGet(day_key)==today)
+     {
+      g_pa_server_day_key=today;
+      g_pa_day_start_equity=GlobalVariableGet(equity_key);
+      if(g_pa_day_start_equity<=0.0)
+         return false;
+     }
+   else
+     {
+      // Never substitute mid-session equity for the true server-day baseline.
+      // Keep the EA attached in signal-only mode until the next opening minute.
+      MqlDateTime server_now;
+      TimeToStruct(server_time,server_now);
+      if(server_now.hour!=0 || server_now.min>1)
+         return false;
+
+      const double opening_equity=AccountInfoDouble(ACCOUNT_EQUITY);
+      if(opening_equity<=0.0 ||
+         GlobalVariableSet(day_key,(double)today)==0 ||
+         GlobalVariableSet(equity_key,opening_equity)==0)
+        {
+         Print("DEMO ACTIVATION PENDING: unable to persist broker-day opening equity baseline.");
+         return false;
+        }
+      GlobalVariablesFlush();
+      g_pa_server_day_key=today;
+      g_pa_day_start_equity=opening_equity;
+     }
+
+   g_pa_daily_locked=false;
+   g_pa_static_loss_locked=false;
+   g_pa_target_locked=false;
+   g_pa_demo_execution_ready=true;
+   g_pa_demo_execution_pending=false;
+   PrintFormat("DEMO CHALLENGE READY | target=%.2f%% | firm_daily=%.2f%% | internal_daily=%.2f%% | static_max_loss=%.2f%% | min_days=%d | start_balance=%.2f | live=false",
+      PA_DEMO_SINGLE_PROFIT_TARGET_PERCENT,PA_DEMO_FIRM_DAILY_LOSS_PERCENT,
+      PA_DEMO_DAILY_LOSS_PERCENT,PA_DEMO_STATIC_MAX_LOSS_PERCENT,
+      PA_DEMO_MIN_TRADING_DAYS,g_pa_challenge_initial_balance);
+   return true;
+  }
+
 bool PA_InitDemoExecution(const string symbol,const long magic,const bool enabled,
-                          const bool live_input,const double risk_percent,
-                          const int max_positions,const double max_open_risk,
-                          const double daily_loss_limit,const double rr,
-                          const double challenge_initial_balance)
+                          const double risk_percent,const int max_positions,
+                          const double max_open_risk,const double daily_loss_limit,
+                          const double rr,const double challenge_initial_balance)
   {
    g_pa_demo_execution_ready=false;
+   g_pa_demo_execution_pending=false;
    g_pa_exec_symbol=symbol;
    g_pa_exec_magic=magic;
 
-   // The live switch is a permanent hard stop, not a permission flag.
-   if(live_input)
-     {
-      Print("INIT BLOCKED: live trading is permanently disabled in this build.");
-      return false;
-     }
    if(risk_percent!=PA_DEMO_RISK_PER_TRADE_PERCENT ||
       max_positions!=PA_DEMO_MAX_POSITIONS ||
       max_open_risk!=PA_DEMO_MAX_RISK_PERCENT ||
@@ -166,49 +219,12 @@ bool PA_InitDemoExecution(const string symbol,const long magic,const bool enable
    g_pa_trade.SetTypeFillingBySymbol(symbol);
    g_pa_trade.SetDeviationInPoints(30);
 
-   const int today=PA_DayKey(TimeTradeServer());
-   const string day_key=PA_ExecutionPrefix()+".day";
-   const string equity_key=PA_ExecutionPrefix()+".equity";
-   if(GlobalVariableCheck(day_key) && GlobalVariableCheck(equity_key) &&
-      (int)GlobalVariableGet(day_key)==today)
-     {
-      g_pa_server_day_key=today;
-      g_pa_day_start_equity=GlobalVariableGet(equity_key);
-     }
-   else
-     {
-      // The true daily baseline can only be captured at the start of the
-      // broker-server day. If the EA was not running then and no baseline
-      // was persisted, fail closed rather than substituting mid-session equity.
-      MqlDateTime server_now;
-      TimeToStruct(TimeTradeServer(),server_now);
-      if(server_now.hour!=0 || server_now.min>1)
-        {
-         Print("INIT BLOCKED: today's start-of-server-day equity baseline is missing. Attach at server midnight or wait for the next server day.");
-         return false;
-        }
-      g_pa_server_day_key=today;
-      g_pa_day_start_equity=AccountInfoDouble(ACCOUNT_EQUITY);
-      if(g_pa_day_start_equity<=0.0 ||
-         GlobalVariableSet(day_key,(double)today)==0 ||
-         GlobalVariableSet(equity_key,g_pa_day_start_equity)==0)
-        {
-         Print("INIT BLOCKED: cannot persist start-of-day equity baseline.");
-         return false;
-        }
-      GlobalVariablesFlush();
-     }
-   if(g_pa_day_start_equity<=0.0)
-      return false;
-
-   g_pa_daily_locked=false;
-   g_pa_static_loss_locked=false;
-   g_pa_target_locked=false;
-   g_pa_demo_execution_ready=true;
-   PrintFormat("DEMO CHALLENGE READY | target=%.2f%% | firm_daily=%.2f%% | internal_daily=%.2f%% | static_max_loss=%.2f%% | min_days=%d | start_balance=%.2f | live=false",
-      PA_DEMO_SINGLE_PROFIT_TARGET_PERCENT,PA_DEMO_FIRM_DAILY_LOSS_PERCENT,
-      PA_DEMO_DAILY_LOSS_PERCENT,PA_DEMO_STATIC_MAX_LOSS_PERCENT,
-      PA_DEMO_MIN_TRADING_DAYS,g_pa_challenge_initial_balance);
+   // A missing day baseline must not make the chart attachment fail and must
+   // never be replaced by an unsafe mid-session snapshot. The EA stays attached
+   // but sends no orders until the next valid broker-server opening minute.
+   g_pa_demo_execution_pending=true;
+   if(!PA_TryActivateDemoExecution())
+      Print("DEMO EXECUTION PENDING: EA attached in signal-only mode; waiting for a valid broker-server day-start equity baseline. No orders will be sent.");
    return true;
   }
 
