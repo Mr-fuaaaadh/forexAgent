@@ -105,7 +105,7 @@ bool PA_RunSecondaryStrategies(const string symbol,
    PA_EvaluateBreakoutRetest(symbol,m5_rates,m5_count,spread_price,
       m5_snapshot,state.breakout,candidates[1]);
    PA_EvaluateTrendPullback(symbol,m5_rates,m5_count,spread_price,
-      m5_snapshot,state.continuation,candidates[2]);
+      state.continuation,candidates[2]);
 
    const bool arbitrated=PA_ArbitrateStrategySignals(candidates,3,selected);
    if(arbitrated)
