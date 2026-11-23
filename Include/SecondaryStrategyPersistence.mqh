@@ -155,9 +155,18 @@ bool PA_LoadSecondaryStrategyState(const string symbol,const long magic_number,
       return false;
    if(!PA_LoadOneSecondarySetup(hash,"ob",state.order_block) ||
       !PA_LoadOneSecondarySetup(hash,"br",state.breakout) ||
-      !PA_LoadOneSecondarySetup(hash,"tr",state.continuation) ||
-      !PA_LoadOneSecondarySetup(hash,"b2",state.model_b2))
+      !PA_LoadOneSecondarySetup(hash,"tr",state.continuation))
       return false;
+   // Backward compatibility: pre-B2 state has no B2 keys. Accept that
+   // complete legacy state with an idle B2 slot; partial/corrupt B2 state
+   // remains fail-closed.
+   if(GlobalVariableCheck(PA_SecondaryKey(hash,"b2st")))
+     {
+      if(!PA_LoadOneSecondarySetup(hash,"b2",state.model_b2))
+         return false;
+     }
+   else
+      PA_ResetSecondarySetup(state.model_b2);
    state.last_processed_m5_bar_time=(datetime)lp;
    state.last_seen_m15_event_time=(datetime)me;
    state.last_emitted_setup_id=StringFormat("HASH:%I64d",(long)em);
