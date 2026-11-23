@@ -84,7 +84,7 @@ bool PA_LoadOneSecondarySetup(const uint hash,const string prefix,
       !PA_SecondaryRead(hash,prefix+"id",id))
       return false;
 
-   if(st<PA_SECONDARY_IDLE || st>PA_SECONDARY_WAIT_CONTINUATION ||
+   if(st<PA_SECONDARY_IDLE || st>PA_SECONDARY_WAIT_TRIGGER ||
       MathFloor(st)!=st || di < -1 || di > 1 || MathFloor(di)!=di ||
       ev<0 || ct<0 || bw<0 || MathFloor(bw)!=bw)
       return false;
@@ -122,6 +122,7 @@ bool PA_SaveSecondaryStrategyState(const string symbol,const long magic_number,
    ok=PA_SaveOneSecondarySetup(hash,"ob",state.order_block) && ok;
    ok=PA_SaveOneSecondarySetup(hash,"br",state.breakout) && ok;
    ok=PA_SaveOneSecondarySetup(hash,"tr",state.continuation) && ok;
+   ok=PA_SaveOneSecondarySetup(hash,"b2",state.model_b2) && ok;
    uint emitted=2166136261;
    if(StringFind(state.last_emitted_setup_id,"HASH:")==0)
       emitted=(uint)StringToInteger(StringSubstr(state.last_emitted_setup_id,5));
@@ -154,7 +155,8 @@ bool PA_LoadSecondaryStrategyState(const string symbol,const long magic_number,
       return false;
    if(!PA_LoadOneSecondarySetup(hash,"ob",state.order_block) ||
       !PA_LoadOneSecondarySetup(hash,"br",state.breakout) ||
-      !PA_LoadOneSecondarySetup(hash,"tr",state.continuation))
+      !PA_LoadOneSecondarySetup(hash,"tr",state.continuation) ||
+      !PA_LoadOneSecondarySetup(hash,"b2",state.model_b2))
       return false;
    state.last_processed_m5_bar_time=(datetime)lp;
    state.last_seen_m15_event_time=(datetime)me;
