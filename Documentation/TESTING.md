@@ -12,10 +12,13 @@ The mechanical research baseline is in `STRATEGY_RULES.md`. Test A, B1, B2, C, D
 
 - Bullish H1 HH/HL + bullish M15 alignment qualifies; bearish LL/LH + bearish M15 alignment qualifies.
 - Missing H1 swing sequence, mixed H1/M15 direction, or unconfirmed pivot rejects.
-- Pullback exactly at both ±0.15 × M15 ATR zone boundaries is handled deterministically.
-- M5 rejection without a later confirming break does not enter.
-- Confirmation break on the same bar as zone touch must not satisfy a later-stage requirement.
-- H1/M15 context flip, structural invalidation, and 24-bar expiry cancel the setup.
+- The last two confirmed H1 highs and lows must independently form HH/HL or LL/LH; a direction flag or single BOS is insufficient.
+- Model A setup zone is frozen from the broken M15 swing ±0.15 × M15 ATR(14), calculated from completed M15 candles.
+- Pullback must overlap the frozen zone and the touch candle must be a directional M5 rejection.
+- A separate later completed M5 candle must close beyond the rejection candle high/low in the trend direction.
+- Same-bar touch-and-break is prohibited; zone invalidation and context loss cancel the setup. A defensive 48-bar pending-setup expiry is separate from the specified 24-bar post-entry holding limit.
+- Verify the stop invalidation is the rejection extreme and execution applies the separately frozen stop buffer.
+- Post-entry 24-M5-bar time exit is not part of this signal-module change; test it when the position manager is implemented.
 
 ## Model B1 — staged sweep/CHoCH/FVG/retest fixtures
 

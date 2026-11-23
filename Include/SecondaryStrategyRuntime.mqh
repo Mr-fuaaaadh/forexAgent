@@ -25,6 +25,8 @@ string PA_SecondaryHashMarker(const string setup_id)
 
 bool PA_RunSecondaryStrategies(const string symbol,
                                const long magic_number,
+                               const MqlRates &h1_rates[],
+                               const int h1_count,
                                const MqlRates &m15_rates[],
                                const int m15_count,
                                const PA_StructureState &m15_state,
@@ -37,8 +39,9 @@ bool PA_RunSecondaryStrategies(const string symbol,
                                PA_StrategySignal &selected)
   {
    PA_ResetStrategySignal(selected);
-   if(symbol=="" || magic_number<=0 || m15_count<20 || m5_count<20 ||
-      m15_rates[1].time<=0 || m5_rates[1].time<=0 ||
+   if(symbol=="" || magic_number<=0 || h1_count<20 ||
+      m15_count<20 || m5_count<20 ||
+      h1_rates[1].time<=0 || m15_rates[1].time<=0 || m5_rates[1].time<=0 ||
       spread_price<0.0)
      {
       selected.rejection_reason="INVALID_SECONDARY_RUNTIME_INPUT";
@@ -86,11 +89,14 @@ bool PA_RunSecondaryStrategies(const string symbol,
       state.breakout.direction!=context_direction)
       PA_ResetSecondarySetup(state.breakout);
    if(state.continuation.stage!=PA_SECONDARY_IDLE &&
-      state.continuation.direction!=context_direction)
+      (state.continuation.direction!=context_direction ||
+       !PA_HasConfirmedH1TrendStructure(h1_rates,h1_count,
+                                        context_direction,80)))
       PA_ResetSecondarySetup(state.continuation);
 
    // Capture an M15 BOS only when it is the currently completed M15 bar.
-   PA_CaptureM15BOS(symbol,m15_rates,m15_count,m15_state,context,state);
+   PA_CaptureM15BOS(symbol,h1_rates,h1_count,m15_rates,m15_count,
+                     m15_state,context,state);
 
    PA_StrategySignal candidates[3];
    for(int i=0;i<3;i++)
@@ -101,7 +107,7 @@ bool PA_RunSecondaryStrategies(const string symbol,
    PA_EvaluateBreakoutRetest(symbol,m5_rates,m5_count,spread_price,
       m5_snapshot,state.breakout,candidates[1]);
    PA_EvaluateTrendPullback(symbol,m5_rates,m5_count,spread_price,
-      m5_snapshot,state.continuation,candidates[2]);
+      state.continuation,candidates[2]);
 
    const bool arbitrated=PA_ArbitrateStrategySignals(candidates,3,selected);
    if(arbitrated)

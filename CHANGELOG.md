@@ -4,6 +4,8 @@ All notable project changes are recorded here.
 
 ## Unreleased
 
+- Implemented Model A qualification: explicit two-pivot H1 HH/HL or LL/LH structure, M15 BOS-aligned pullback zone at ±0.15 × M15 ATR, M5 directional rejection, and a later confirmation-candle break.
+- Added synthetic fixture coverage for bullish/bearish H1 swing-sequence qualification, Model A pullback rejection, later trigger ordering, and setup-zone capture. MetaEditor compilation and fixture execution remain pending; the post-entry 24-bar time exit is a separate position-manager task.
 - Froze the mechanical XAUUSD A/B1/B2/C/D research baseline in `Documentation/STRATEGY_RULES.md`.
 - Defined B1 and B2 as distinct, separately testable liquidity-sweep variants.
 - Specified Model A trend structure and ATR pullback zone, Model C compression range and retest deadline, and Model D session windows with explicit IANA timezone/DST behavior.
