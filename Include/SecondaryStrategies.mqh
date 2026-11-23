@@ -138,6 +138,53 @@ double PA_SecondaryATR(const MqlRates &rates[],const int count,
    return total/period;
   }
 
+// Latest two confirmed pivots; series arrays use smaller shifts for newer bars.
+bool PA_GetLatestTwoConfirmedSwings(const MqlRates &rates[],const int count,
+                                    const int lookback,const bool find_high,
+                                    double &latest_level,datetime &latest_time,
+                                    double &previous_level,datetime &previous_time)
+  {
+   latest_level=0.0; latest_time=0;
+   previous_level=0.0; previous_time=0;
+   if(count<12 || lookback<4) return false;
+   int found=0;
+   const int last_shift=(int)MathMin(lookback,count-4);
+   for(int shift=4;shift<=last_shift;shift++)
+     {
+      const bool pivot=find_high ? PA_IsConfirmedSwingHigh(rates,count,shift)
+                                 : PA_IsConfirmedSwingLow(rates,count,shift);
+      if(!pivot) continue;
+      const double level=find_high?rates[shift].high:rates[shift].low;
+      const datetime pivot_time=rates[shift].time;
+      if(found==0)
+        {
+         latest_level=level; latest_time=pivot_time; found=1;
+        }
+      else
+        {
+         previous_level=level; previous_time=pivot_time;
+         return (latest_time>previous_time);
+        }
+     }
+   return false;
+  }
+
+bool PA_HasConfirmedH1TrendStructure(const MqlRates &h1_rates[],
+                                     const int h1_count,const int direction,
+                                     const int lookback=80)
+  {
+   if(direction!=1 && direction!=-1) return false;
+   double lh=0.0,ph=0.0,ll=0.0,pl=0.0;
+   datetime lht=0,pht=0,llt=0,plt=0;
+   if(!PA_GetLatestTwoConfirmedSwings(h1_rates,h1_count,lookback,true,
+      lh,lht,ph,pht) ||
+      !PA_GetLatestTwoConfirmedSwings(h1_rates,h1_count,lookback,false,
+      ll,llt,pl,plt))
+      return false;
+   if(direction>0) return (lh>ph && ll>pl);
+   return (lh<ph && ll<pl);
+  }
+
 bool PA_IsBullishRejection(const MqlRates &bar)
   {
    const double body=MathAbs(bar.close-bar.open);
@@ -232,6 +279,8 @@ bool PA_FindOrderBlock(const MqlRates &rates[],const int count,
 // Capture a newly confirmed M15 BOS exactly once. The caller must update
 // the M15 structure state from closed candles before calling this module.
 void PA_CaptureM15BOS(const string symbol,
+                      const MqlRates &h1_rates[],
+                      const int h1_count,
                       const MqlRates &m15_rates[],
                       const int m15_count,
                       const PA_StructureState &m15_state,
@@ -293,22 +342,27 @@ void PA_CaptureM15BOS(const string symbol,
         }
      }
 
-   // Continuation uses the broken swing as a pullback reference.
+   // Model A requires explicit H1 HH/HL or LL/LH and a completed-M15 ATR.
+   const bool h1_valid=PA_HasConfirmedH1TrendStructure(h1_rates,h1_count,direction,80);
+   const double m15_atr=PA_SecondaryATR(m15_rates,m15_count,14);
    const double support=direction>0
       ? m15_state.latest_swing_high : m15_state.latest_swing_low;
-   if(support>0.0)
+   if(h1_valid && m15_atr>0.0 && support>0.0)
      {
+      const double half_zone=0.15*m15_atr;
       PA_ResetSecondarySetup(state.continuation);
       state.continuation.stage=PA_SECONDARY_WAIT_PULLBACK;
       state.continuation.direction=direction;
       state.continuation.source_event_time=event_time;
       state.continuation.setup_created_time=event_time+PeriodSeconds(PERIOD_M15);
       state.continuation.reference_level=support;
-      state.continuation.zone_low=support;
-      state.continuation.zone_high=support;
+      state.continuation.zone_low=support-half_zone;
+      state.continuation.zone_high=support+half_zone;
       state.continuation.setup_id=PA_MakeSecondarySetupId(symbol,
          PA_STRATEGY_TREND_PULLBACK,direction,event_time,support);
      }
+   else
+      PA_ResetSecondarySetup(state.continuation);
   }
 
 bool PA_EvaluateBOSOrderBlockRetest(const string symbol,
@@ -439,7 +493,9 @@ bool PA_EvaluateTrendPullback(const string symbol,
                               PA_StrategySignal &signal)
   {
    PA_ResetStrategySignal(signal);
-   if(setup.stage==PA_SECONDARY_IDLE || m5_count<4)
+   if(setup.stage==PA_SECONDARY_IDLE || m5_count<4 ||
+      (setup.direction!=1 && setup.direction!=-1) ||
+      setup.zone_high<=setup.zone_low || spread_price<0.0)
       return false;
    if(m5_rates[1].time<=setup.setup_created_time)
      {
@@ -447,67 +503,58 @@ bool PA_EvaluateTrendPullback(const string symbol,
       return false;
      }
    setup.bars_waiting++;
-   if(setup.bars_waiting>48)
+   if(setup.bars_waiting>24)
      {
       PA_ResetSecondarySetup(setup);
       signal.rejection_reason="TREND_PULLBACK_SETUP_EXPIRED";
       return false;
      }
-
-   const double atr=PA_SecondaryATR(m5_rates,m5_count,14);
-   if(atr<=0.0)
-      return false;
-   const double tolerance=MathMax(2.0*spread_price,0.15*atr);
-   const double level=setup.reference_level;
-   if((setup.direction>0 && m5_rates[1].close<level-2.0*tolerance) ||
-      (setup.direction<0 && m5_rates[1].close>level+2.0*tolerance))
+   if((setup.direction>0 && m5_rates[1].close<setup.zone_low) ||
+      (setup.direction<0 && m5_rates[1].close>setup.zone_high))
      {
       PA_ResetSecondarySetup(setup);
-      signal.rejection_reason="TREND_PULLBACK_LEVEL_INVALIDATED";
+      signal.rejection_reason="TREND_PULLBACK_ZONE_INVALIDATED";
       return false;
      }
-
    if(setup.stage==PA_SECONDARY_WAIT_PULLBACK)
      {
-      const bool touched=setup.direction>0
-         ? (m5_rates[1].low<=level+tolerance &&
-            m5_rates[1].low>=level-2.0*tolerance)
-         : (m5_rates[1].high>=level-tolerance &&
-            m5_rates[1].high<=level+2.0*tolerance);
+      const bool touched=(m5_rates[1].low<=setup.zone_high &&
+                          m5_rates[1].high>=setup.zone_low);
       if(!touched)
         {
-         signal.rejection_reason="WAITING_FOR_TREND_PULLBACK";
+         signal.rejection_reason="WAITING_FOR_TREND_PULLBACK_ZONE";
+         return false;
+        }
+      const bool rejected=setup.direction>0
+         ? PA_IsBullishRejection(m5_rates[1])
+         : PA_IsBearishRejection(m5_rates[1]);
+      if(!rejected)
+        {
+         signal.rejection_reason="PULLBACK_TOUCH_WITHOUT_DIRECTIONAL_REJECTION";
          return false;
         }
       setup.stage=PA_SECONDARY_WAIT_CONTINUATION;
-      setup.pullback_extreme=setup.direction>0
-         ? m5_rates[1].low : m5_rates[1].high;
+      setup.pullback_extreme=setup.direction>0?m5_rates[1].low:m5_rates[1].high;
       setup.setup_created_time=m5_rates[1].time;
-      signal.rejection_reason="PULLBACK_CAPTURED_WAIT_CONTINUATION";
+      signal.rejection_reason="PULLBACK_REJECTION_CAPTURED_WAIT_BREAK";
       return false;
      }
-
    if(setup.stage==PA_SECONDARY_WAIT_CONTINUATION)
      {
-      if(m5_rates[1].time<=setup.setup_created_time)
-         return false;
-      const bool higher_low=(setup.direction>0 &&
-         m5_rates[1].low>setup.pullback_extreme &&
+      if(m5_rates[1].time<=setup.setup_created_time) return false;
+      const bool bullish_break=(setup.direction>0 &&
          m5_rates[1].close>m5_rates[2].high &&
-         PA_IsBullishM5Confirmation(m5_rates,m5_count,m5_snapshot));
-      const bool lower_high=(setup.direction<0 &&
-         m5_rates[1].high<setup.pullback_extreme &&
+         m5_rates[1].close>m5_rates[1].open);
+      const bool bearish_break=(setup.direction<0 &&
          m5_rates[1].close<m5_rates[2].low &&
-         PA_IsBearishM5Confirmation(m5_rates,m5_count,m5_snapshot));
-      if(!higher_low && !lower_high)
+         m5_rates[1].close<m5_rates[1].open);
+      if(!bullish_break && !bearish_break)
         {
-         signal.rejection_reason="WAITING_FOR_PULLBACK_CONTINUATION";
+         signal.rejection_reason="WAITING_FOR_REJECTION_CANDLE_BREAK";
          return false;
         }
-
       PA_EmitSecondarySignal(symbol,PA_STRATEGY_TREND_PULLBACK,setup,
-         m5_rates[1].time,setup.direction>0?setup.pullback_extreme:
-                                           setup.pullback_extreme,signal);
+         m5_rates[1].time,setup.pullback_extreme,signal);
       PA_ResetSecondarySetup(setup);
       return true;
      }
