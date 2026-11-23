@@ -68,3 +68,12 @@ Frozen router precedence: session expansion D → compression/expansion C → tr
 ## Research acceptance boundary
 
 Initial data split: development 2018–2022, validation 2023–2024, untouched OOS 2025–October 2026, subject to verified history availability. Research gates are screening criteria, not guarantees: OOS PF ≥1.20, positive net expectancy, max DD ≤8% preferred, ideally 100+ OOS trades/model, majority years positive, and positive expectancy under 1.5× spread stress. Report inadequate sample sizes as inconclusive. No model is currently claimed profitable or validated.
+
+
+### Model B2 implementation update
+- Added independent B2 sweep/reclaim/MSS/confirmation/trigger state machine.
+- Sweep references: latest confirmed M15 swing and previous completed D1 high/low.
+- Reclaim deadline: sweep candle or next two completed M5 candles.
+- MSS, confirmation and trigger require later completed candles.
+- B2 accepts aligned or explicit neutral-reversal directional context; other secondary continuation models retain strict alignment.
+- MetaEditor compile, fixture execution and backtesting remain pending; implementation is not evidence of profitability.

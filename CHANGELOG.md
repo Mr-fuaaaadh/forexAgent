@@ -26,3 +26,10 @@ All notable project changes are recorded here.
 - Added primary M5 sweep → CHoCH → FVG → retest state machine and setup persistence.
 - Added H1/M15 context evaluation, closed-bar structure processing, and terminal Global Variable persistence.
 - Added synthetic MT5 fixture source files; fixture execution evidence remains outstanding.
+
+
+## [Unreleased] — Model B2 fast-reclaim variant
+- Added separate B2 M15/previous-day sweep, two-bar reclaim, distinct MSS, later confirmation and trigger-break logic.
+- Added B2 persistence, context eligibility, arbitration and synthetic fixture coverage.
+- Kept B1 unchanged and preserved demo-only execution safeguards.
+- MetaEditor compilation, fixture execution and backtesting remain pending.

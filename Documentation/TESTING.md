@@ -100,3 +100,7 @@ The mechanical research baseline is in `STRATEGY_RULES.md`. Test A, B1, B2, C, D
 - Report net profit, profit factor, expected payoff, equity and balance drawdown, trade count, win/loss distribution, average R, exposure, spread/commission/swap, slippage, and year-by-year/OOS results.
 - Run 1.5× spread stress, parameter sensitivity, walk-forward, Monte Carlo, and hybrid portfolio tests.
 - Historical results do not guarantee future performance.
+
+
+### Model B2 fixture coverage
+The secondary-strategy fixture now covers M15 swing sweep capture, reclaim sequencing, distinct MSS, later directional confirmation, trigger break and B2 persistence. Run in MetaEditor/Strategy Tester before enabling demo execution.
