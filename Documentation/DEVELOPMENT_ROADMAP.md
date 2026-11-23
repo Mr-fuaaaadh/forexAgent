@@ -1,55 +1,72 @@
 # Development roadmap
 
 ## Phase 0 — specification and source audit
+
 - [x] Establish project scope and demo-only safety requirements.
 - [x] Implement primary M5 sweep/CHoCH/FVG signal engine.
 - [x] Implement BOS/OB, breakout/retest, and trend-pullback signal modules.
 - [x] Integrate primary + secondary candidates into one root EA arbitration point.
 - [x] Add a DEMO + HEDGING-only execution path behind a false-by-default input.
 - [x] Reconcile documentation with the current source and identify research gaps.
-- [ ] Freeze the complete A/B/C/D mechanical strategy specification and resolve stop-buffer discrepancy.
+- [x] Freeze mechanical A/B1/B2/C/D research baseline, stop buffer, exits, router precedence, and fixture requirements (documentation only).
 
-## Phase 1 — strategy completeness
-- [ ] Model A: explicit H1 HH/HL or LL/LH qualification and M15 ATR pullback zone.
-- [ ] Model B: compare current sweep→CHoCH→FVG→retest with explicit sweep→reclaim→MSS alternative.
-- [ ] Model C: add 12-M15-bar compression/range definition, ATR width, breakout displacement, and six-M5-bar retest deadline.
-- [ ] Model D: session range expansion with UTC/DST-safe conversion and breakout/retest confirmation.
-- [ ] Build regime router for trend, range/liquidity, compression/expansion, and session expansion.
-- [ ] Prevent same-event strategy duplication and validate model coexistence.
+## Phase 1 — strategy completeness (implementation pending)
+
+- [ ] Model A: implement explicit H1 HH/HL or LL/LH qualification and ±0.15 × M15 ATR pullback zone.
+- [ ] Model B1: preserve and independently test staged sweep → later CHoCH → FVG → retest.
+- [ ] Model B2: implement and independently test sweep → reclaim within 2 M5 bars → later MSS → confirmation.
+- [ ] Model C: implement 12-completed-M15-bar range, 0.8–3.0 ATR width, ≥0.10 ATR breakout displacement, and six-M5-bar retest deadline.
+- [ ] Model D: implement Asian UTC range and London/New York local-time expansion windows with IANA DST-safe conversion; fail closed if timezone conversion is unavailable.
+- [ ] Build regime router with precedence D → C → A → B and explicit no-trade state.
+- [ ] Prevent same-event duplication and validate model coexistence.
 
 ## Phase 2 — execution hardening (DEMO only)
+
 - [x] Risk sizing with `OrderCalcProfit()` and volume-step flooring.
 - [x] Position cap and aggregate open-risk check.
 - [x] Internal daily, static maximum-loss, and profit-target guards.
 - [ ] Add explicit maximum spread and spread/ATR checks.
-- [ ] Resolve and implement approved SL buffer consistently.
+- [ ] Implement the frozen structural stop buffer: max(0.10 × M5 ATR(14), 2 × spread).
 - [ ] Verify actual filled volume, fill price, SL, TP, and initial monetary risk after every fill/partial fill.
 - [ ] Harden trade transaction lifecycle, retries, ambiguous outcomes, and reservation recovery.
 - [ ] Validate account currency, symbol contract, tick/volume properties, and broker stop/freeze rules.
 - [ ] Persist and test lockout states across restart and broker-day rollover.
-- [ ] Add the approved challenge-specific distinct trading-day counter and verify target/lockout semantics.
+- [ ] Add approved challenge-specific distinct trading-day counter and verify target/lockout semantics.
 
 ## Phase 3 — filters and exits
-- [ ] Define session/rollover behavior and timezone/DST policy.
-- [ ] Define and integrate a fail-closed USD high-impact news filter if retained in the frozen spec.
+
+- [ ] Implement frozen model time exits: A 24, B1/B2 12, C 12, D 18 completed M5 bars.
+- [ ] Evaluate a separately specified high-impact USD news filter after baseline model comparison; it is disabled in the initial comparison.
 - [ ] Add slippage and spread-quality controls.
 - [ ] Complete structural/price-action exits and reason-code logging.
 
 ## Phase 4 — deterministic testing
+
 - [ ] Compile exact current revision with strict MetaEditor settings.
 - [ ] Run all synthetic fixtures and record build/output.
 - [ ] Test closed-bar determinism, restart/replay, and duplicate setup prevention.
 - [ ] Add execution fixtures for order rejection, partial fill, missing SL, stop-level rejection, spread spike, disconnect, and rollover.
-- [ ] Validate on the target broker's XAUUSD contract and DEMO + HEDGING account.
+- [ ] Validate on target broker XAUUSD contract and DEMO + HEDGING account.
+- [ ] Verify London/New York DST conversions against known transition dates.
 
 ## Phase 5 — strategy research and performance validation
+
 - [ ] Obtain sufficient M1/M5/M15/H1 historical data with realistic spread, commission, swap, and tick assumptions.
-- [ ] Test each model independently.
+- [ ] Test A, B1, B2, C, and D independently.
 - [ ] Tune only on development data; use validation data for selection.
-- [ ] Preserve the final out-of-sample period untouched.
+- [ ] Preserve final out-of-sample period untouched.
 - [ ] Run hybrid portfolio, walk-forward, parameter sensitivity, execution stress, and Monte Carlo tests.
 - [ ] Record net expectancy, profit factor, drawdown, trade count, cost sensitivity, and yearly distribution.
 - [ ] Run a sustained DEMO forward test.
 
+## Frozen research defaults
+
+- XAUUSD; M5 entries; H1/M15 context; DEMO + HEDGING only.
+- Risk 0.5% per trade; max 3 managed positions; max aggregate open risk 1.5%; daily loss lock 2%; static max loss 12%; profit target 10%.
+- Stop buffer max(0.10 × M5 ATR(14), 2 × spread); baseline TP 2R; compare 1.5R and 2.5R separately.
+- Initial comparison news filter disabled.
+- See `STRATEGY_RULES.md` for exact mechanical definitions and `TESTING.md` for fixture matrix.
+
 ## Safety boundary
+
 Execution remains false by default and DEMO + HEDGING only. No live-trading implementation or enablement is in scope.
