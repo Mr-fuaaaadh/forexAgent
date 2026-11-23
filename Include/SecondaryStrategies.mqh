@@ -383,7 +383,7 @@ bool PA_EvaluateModelB2(const string symbol,
                         PA_SecondarySetup &setup,PA_StrategySignal &signal)
   {
    PA_ResetStrategySignal(signal);
-   if(symbol=="" || m15_count<20 || m5_count<20 || d1_count<0 ||
+   if(symbol=="" || m15_count<20 || m5_count<20 ||
       spread_price<0.0 || (context_direction!=1 && context_direction!=-1) ||
       m5_rates[1].time<=0)
      { signal.rejection_reason="MODEL_B2_INVALID_INPUT"; return false; }
@@ -472,8 +472,9 @@ bool PA_EvaluateModelB2(const string symbol,
          (setup.direction<0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BULLISH);
       if(opposite_mss)
         { PA_ResetSecondarySetup(setup); signal.rejection_reason="MODEL_B2_OPPOSITE_MSS_INVALIDATED"; return false; }
-      const bool mss=(setup.direction>0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BULLISH) ||
-                     (setup.direction<0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BEARISH);
+      const bool mss=(m5_snapshot.signal_bar_time==m5_rates[1].time) &&
+         ((setup.direction>0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BULLISH) ||
+          (setup.direction<0 && m5_snapshot.break_type==PA_BREAK_CHOCH_BEARISH));
       if(!mss) { signal.rejection_reason="MODEL_B2_WAITING_FOR_DISTINCT_MSS"; return false; }
       setup.stage=PA_SECONDARY_WAIT_CONFIRMATION;
       setup.setup_created_time=m5_rates[1].time;
