@@ -1,60 +1,33 @@
-# Signal-only EA integration
+# Root EA runtime integration
 
 ## Scope
+The root `PriceActionHybridEA.mq5` integrates H1/M15 context, the primary M5 sweep/CHoCH/FVG signal engine, three secondary signal modules, unified arbitration, and an optional DEMO-only execution path.
 
-The root `PriceActionHybridEA.mq5` wires the H1/M15 structure context to the primary M5 liquidity-sweep → CHoCH → FVG → retest signal engine.
-
-This is a **signal-only integration**, not an order-execution EA. It does not submit, modify, or close orders.
+This is not a signal-only-only architecture: when `InpEnableTrading=true), initialization succeeds, the account is DEMO + HEDGING, permissions are available, and a valid broker-day baseline is ready, the selected signal can be submitted through `DemoExecution.mqh`. The default remains false. No live-account execution path is provided.
 
 ## Runtime sequence
+1. Validate fixed safety inputs and XAUUSD symbol metadata (base XAU, profit USD).
+2. Initialize the demo execution module; if disabled, remain signal-only.
+3. If enabled, require a positive persisted challenge initial balance and DEMO + HEDGING account.
+4. If today's broker-server day-start equity baseline is missing, remain attached in pending/signal-only mode until server time 00:00–00:01.
+5. Restore H1, M15, M5 structure and primary/secondary setup state.
+6. Update H1/M15 context from completed bars.
+7. On each newly opened M5 candle, evaluate the just-completed M5 bar.
+8. Evaluate primary and secondary strategy candidates, persist state, and arbitrate once.
+9. If a signal is selected, execute only when the demo execution module is ready; otherwise log signal-only with no order sent.
+10. Enforce daily/static/target and missing-protection guards on ticks while execution is ready.
 
-1. Validate input ranges and refuse startup if either trading toggle is enabled.
-2. Validate the selected chart symbol using broker-provided base/profit currency metadata (XAU/USD only).
-3. Restore H1, M15, M5 structure and M5 setup state from terminal global variables when available.
-4. Build/update H1 and M15 structure using completed candles and resolve directional context.
-5. Wait for a newly opened M5 candle; then evaluate the candle that has just closed.
-6. Evaluate the primary sweep → CHoCH → FVG → retest state machine.
-7. Persist M5 structure and setup state. If persistence fails, suppress the signal log.
-8. Log a qualified BUY/SELL signal as `SIGNAL ONLY ... NO ORDER SENT`; otherwise log the rejection reason.
+## Current public inputs
+See `CONFIGURATION.md`. `InpEnableTrading` defaults false. There is no live trading toggle.
 
-## Inputs
+## Current validation boundary
+The current source path is present, but the evidence log does not yet prove the current revision compiles, all fixtures pass, execution lifecycle is correct, or any model is profitable. Keep execution disabled while validating signals. Any execution test must use a dedicated DEMO + HEDGING account and verify actual post-fill protection and risk.
 
-- `InpEnableTrading`: must remain false. Startup is rejected if true.
-- `InpAllowLiveTrading`: must remain false. Startup is rejected if true.
-- `InpMagicNumber`: namespaces persistent state.
-- `InpHistoryBars`: history requested for each timeframe.
-- `InpSwingLookback`: confirmed-swing search range.
-- `InpMaximumSetupBars`: maximum age of the primary setup.
-
-`InpRiskPercent` is retained for configuration compatibility but is not used for sizing in this signal-only build.
-
-## User-reported validation (2026-11-22)
-
-- MetaEditor strict compile reported 0 errors and 0 warnings.
-- XAUUSD chart attachment reported `SIGNAL-ONLY EA READY` on H1, M5, M1, and M15 chart instances during timeframe changes.
-- The observed chart context was H1=-1 and M15=1, resolved as `PA_CONTEXT_NO_TRADE`. Conflicting higher-timeframe directions are correctly blocked.
-- Strategy Tester initialization also succeeded, but the available history/tick data did not cover the full requested period. See `VALIDATION_LOG.md`.
-
-These observations confirm compilation and initialization only. A qualified signal, sustained closed-bar processing, and restart/replay behavior have not yet been demonstrated.
-
-## Known limitations / not yet implemented
-
-- Secondary BOS/OB, breakout/retest, and trend-pullback modules exist but are not wired into the root EA runtime arbitration.
-- No order execution, monetary lot sizing, SL/TP placement, position management, daily/weekly loss controls, news calendar, rollover, spread/ATR filter, or slippage control.
-- The symbol check uses currency metadata and is not a complete broker contract compatibility adapter.
-- Existing structure-state persistence has not yet been validated through restart/replay tests on the user's terminal.
-- Synthetic fixtures are present but their MT5 execution results have not yet been recorded.
-- The runtime does not prove signal profitability. Complete Strategy Tester and demo forward validation are still required.
-
-## Installation and first test
-
-1. Update the intended Git branch.
-2. Copy the repository contents while preserving the root `Include` folder into the MT5 data folder under `MQL5/Experts/forexAgent`.
-3. Open `PriceActionHybridEA.mq5` in MetaEditor and compile with F7.
-4. Attach to the broker's XAUUSD instrument on an M5 chart.
-5. Keep both trading inputs false. Allow time for the next M5 candle to open.
-6. Inspect the Experts log for `SIGNAL-ONLY EA READY`, then `NO SIGNAL`, rejection messages, or `SIGNAL ONLY ... NO ORDER SENT`.
-
-## Safety
-
-Never enable trading for this build. A later execution release requires independent review and validation of account-currency risk calculations, broker-side protection, order lifecycle handling, and account-level lockouts.
+## Known limitations
+- A valid broker-day baseline is required; mid-session attachment may remain pending until the next server-day opening minute.
+- The order path uses structural invalidation directly and does not yet add the research stop buffer.
+- No explicit max-spread/spread-to-ATR filter.
+- No post-fill reconciliation of actual volume, fill price, SL/TP, and monetary risk.
+- No full partial-fill/retry/recovery lifecycle.
+- Account currency and full broker contract compatibility are not comprehensively validated.
+- No session/news/rollover filters or complete A/B/C/D regime router.
