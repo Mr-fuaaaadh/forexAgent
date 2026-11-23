@@ -13,7 +13,6 @@
 #include "Include/DemoExecution.mqh"
 
 input bool   InpEnableTrading    = false;
-input bool   InpAllowLiveTrading = false;
 input long   InpMagicNumber      = 120026;
 input double InpRiskPercent      = 0.5;
 input int    InpMaximumPositions = 3;
@@ -232,13 +231,8 @@ int OnInit()
       return INIT_PARAMETERS_INCORRECT;
      }
 
-   // Live execution is permanently forbidden. Enabling execution only
-   // activates the separately hard-locked DEMO/hedging implementation.
-   if(InpAllowLiveTrading)
-     {
-      Print("INIT FAILED: live trading is permanently disabled in this build.");
-      return INIT_PARAMETERS_INCORRECT;
-     }
+   // Live execution has no user-configurable switch. The execution module
+   // independently rejects every account except DEMO + HEDGING.
 
    g_symbol = _Symbol;
    if(!PA_IsSupportedGoldSymbol(g_symbol))
@@ -251,10 +245,9 @@ int OnInit()
      }
 
    if(!PA_InitDemoExecution(g_symbol,InpMagicNumber,InpEnableTrading,
-                            InpAllowLiveTrading,InpRiskPercent,
-                            InpMaximumPositions,InpMaximumOpenRisk,
-                            InpDailyLossLimit,InpRiskRewardRatio,
-                            InpChallengeInitialBalance))
+                            InpRiskPercent,InpMaximumPositions,
+                            InpMaximumOpenRisk,InpDailyLossLimit,
+                            InpRiskRewardRatio,InpChallengeInitialBalance))
      {
       Print("INIT FAILED: demo execution safety initialization failed.");
       return INIT_FAILED;
@@ -279,6 +272,7 @@ int OnInit()
      }
 
    g_runtime_ready = true;
+   EventSetTimer(1); // Keep daily-baseline capture alive even during quiet market periods.
    PrintFormat("PRICE ACTION EA READY | symbol=%s | H1=%d | M15=%d | context=%s | execution=%s | live=false",
       g_symbol,g_h1_structure.direction,g_m15_structure.direction,
       EnumToString(initial_context.context),g_pa_demo_execution_ready ? "DEMO" : "SIGNAL_ONLY");
@@ -287,6 +281,7 @@ int OnInit()
 
 void OnDeinit(const int reason)
   {
+   EventKillTimer();
    if(g_runtime_ready)
      {
       PA_SaveStructureState(g_symbol,PERIOD_H1,InpMagicNumber,g_h1_structure);
@@ -307,10 +302,27 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
       PA_RecordChallengeTradingDay(trans.deal);
   }
 
+void OnTimer()
+  {
+   if(!g_runtime_ready)
+      return;
+
+   // If attached after the broker-day baseline window, activate only when
+   // the timer reaches the next valid server-day opening minute.
+   if(InpEnableTrading && g_pa_demo_execution_pending)
+      PA_TryActivateDemoExecution();
+
+   if(g_pa_demo_execution_ready)
+      PA_EnforceDemoRiskGuards();
+  }
+
 void OnTick()
   {
    if(!g_runtime_ready)
       return;
+
+   if(InpEnableTrading && g_pa_demo_execution_pending)
+      PA_TryActivateDemoExecution();
 
    // Manage demo positions and enforce daily loss / protective-SL guards
    // on every tick, not only when a new M5 candle opens.
